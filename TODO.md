@@ -6,16 +6,11 @@ _우선순위: 🔴발표 전(오늘) · 🟡GPU/Isaac 환경 · 🟢지금 가�
 
 ## 🔴 발표 전 (오늘 · 데모 성공 직결)
 
-- [ ] **대시보드 사전 1회 실행 확인** (메인 라이브 데모, 성공률 ~95%)
-  ```bash
-  cd dashboard && cp .env.example .env
-  uvicorn server:app --port 5000        # 또는: docker-compose up
-  python3 mock_sim.py --camera          # 다른 터미널
-  # → localhost:5000 로그인(admin) → 감지/카메라/순찰/비상정지 확인
-  ```
+- [x] **대시보드 사전 1회 실행 확인** ✅ — uvicorn 기동·로그인 200·detect_mastitis 7/7·
+      COW_6_10 등록·감지 end-to-end 검증 완료
 - [ ] **데모 시나리오 = 대시보드 라이브 + Isaac은 녹화/보조** 로 구성 (Isaac 미검증 리스크 회피)
 - [ ] Isaac 라이브 할 거면 **발표 전 반드시 한 번 띄워보기** (안 띄우면 ~30%, 띄워서 되면 그 장면 재현 ~90%)
-- [ ] `environment_final.usd` 를 `src/smart_farm_spot/assets/scene/` 에 배치 (Slack 파일)
+- [x] `environment_final.usd` 를 `src/smart_farm_spot/assets/scene/` 에 배치 ✅ — git 커밋·push 완료, 전 isaac 스크립트 참조 통일
 
 ---
 
@@ -26,20 +21,24 @@ _우선순위: 🔴발표 전(오늘) · 🟡GPU/Isaac 환경 · 🟢지금 가�
 - [ ] **검사 자세 각도 튜닝** — `SF_INSP_SH1/EL0/WR0` (유방이 손 카메라에 들어오게)
 - [ ] **앉기 자세 튜닝** — `SF_SIT_HY/KN` (몸 낮추되 z>0.30 유지)
 - [ ] **앉기 leg-control 검증** — `env.step` 정책이 sit 을 거스르는지 / 정지구간 정책 leg-action 억제 필요 여부
-- [ ] keepout 마스크 생성 후 동반 실행
-  ```bash
-  python3 tools/make_keepout_mask.py
-  ros2 launch smart_farm_spot keepout.launch.py   # Nav2 와 함께
-  ```
+- [x] keepout 마스크 생성 ✅ — `make_keepout_mask.py` 실행(2461×2461) + bringup/run_scenario 배선 완료
+      ```bash
+      python3 tools/make_keepout_mask.py
+      ros2 launch smart_farm_spot bringup.launch.py keepout:=true   # 또는 SF_KEEPOUT=1 run_scenario.sh
+      ```
+      (남은 검증: Nav2 동반 실제 회피 동작 — Isaac 실행 필요)
+- [ ] **4방향 카메라 + 헤드리스 1사이클** (신규) — 전/후/좌/우 카메라 + 순찰→검출→후방접근→검사
+      완주를 GUI 없이(headless) 1회 자동 실행. ⚠️ Isaac/GPU 필요 — 작성 후 그 환경에서 검증.
 
 ---
 
 ## 🟢 지금 가능 (코드 마무리 · 데모 안정성↑)
 
-- [ ] **팔 무게 트릭 적용** — 팔 링크 질량·inertia ↓ (USD MassAPI 또는 런타임 articulation 오버라이드) → 뒤집힘 방지
-- [ ] **launch 배선** — `twist_mux` / `dashboard_bridge` / `keepout` 노드를 `bringup`/`run_scenario` 에 추가
-- [ ] **`/cmd_vel` 직접 발행 정리** — `cow_tail_seek` → `tail_search/cmd_vel` (twist_mux input). `tools/check_twist_mux.py` 로 확인
-- [ ] **카메라 토픽 연결** — `CAMERA_TOPIC=/spot_cam/rgb` 로 로봇 영상 → 대시보드
+- [x] **팔 무게 트릭 적용** ✅ — `arm_mass.py` 모듈(`apply_light_arm`) 병합, `scenario.py` 연동
+- [x] **launch 배선** ✅ — `bringup.launch.py` 에 `twist_mux`/`dashboard`/`keepout` 인자(기본 off, 하위호환),
+      `run_scenario.sh` 에 `SF_KEEPOUT`/`SF_DASHBOARD` 추가. colcon build·launch 파싱 검증 완료
+- [x] **`/cmd_vel` 직접 발행 정리** ✅ — `cow_tail_seek` → `tail_search/cmd_vel`. `check_twist_mux.py` ✅(직접발행 0)
+- [x] **카메라 토픽 연결** ✅ — 대시보드 `CAMERA_TOPIC=/spot_cam/rgb` 설정(.env.example/.env)
 - [ ] **유방 Emission 머티리얼** — 소 USD 에 발광(40~42°C 모사) 추가 → hotspot 검출 동작
 - [ ] **scenario 완주 연결** — `scenario_nav` 에 트래커(전 소 순회) 연동
 - [ ] (선택) `cow_visual_servo` 재커밋 (검증됨, "검증만" 으로 미커밋)
