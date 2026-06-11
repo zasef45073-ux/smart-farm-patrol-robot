@@ -54,11 +54,11 @@ done
 sleep 6
 echo "    ✅ /scan /odom /tf /spot_cam 발행"
 
-# 3) SLAM
-echo "[3/5] slam_toolbox..."
-rm -f /tmp/slam.log
-setsid ros2 launch smart_farm_spot spot_slam.launch.py use_sim_time:=true > /tmp/slam.log 2>&1 < /dev/null &
-sleep 6
+# 3) 알려진 맵 서버 (SLAM 대체 — Isaac 추출 Prior Map: 펜스+투명벽, map→odom identity)
+echo "[3/5] barn_map_server (알려진 맵 /map + map→odom)..."
+rm -f /tmp/mapserver.log
+ROS_DOMAIN_ID=$DOMAIN setsid python3 "$PKG/barn_map_server.py" > /tmp/mapserver.log 2>&1 < /dev/null &
+sleep 5
 
 # 4) Nav2 (autostart=false → 수동 startup: 활성 레이스 회피)
 echo "[4/5] Nav2 (라이다 코스트맵 경로계획)..."

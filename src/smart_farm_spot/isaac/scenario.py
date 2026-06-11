@@ -65,8 +65,9 @@ BACKUP_DUR = int(os.environ.get("SF_BACKUP_DUR", "70"))         # 후진 탈출 
 # ── in-Isaac 비전 꼬리 검출(SF_VISION_TAIL=1): YOLO·꼬리3D를 프로세스 내부에서 처리,
 #    밖으론 목표(/tmp/scenario_goal.json)만 내보냄 → scenario_nav.py 가 Nav2 로 relay ──
 VISION_TAIL = os.environ.get("SF_VISION_TAIL", "0") == "1"
-DET_CONF = float(os.environ.get("SF_DET_CONF", "0.40"))
+DET_CONF = float(os.environ.get("SF_DET_CONF", "0.55"))        # 오검출↓ 위해 상향
 KPT_CONF = float(os.environ.get("SF_KPT_CONF", "0.30"))
+MIN_BBOX_FRAC = float(os.environ.get("SF_MIN_BBOX_FRAC", "0.28"))  # 소 bbox 높이/이미지 최소(가까울 때만 신뢰)
 TAIL_KPT = 5                                                    # 0 nose..5 tail_base
 N_STABLE = int(os.environ.get("SF_N_STABLE", "5"))             # 안정 추정 측정 수
 RESEND_DIST = float(os.environ.get("SF_RESEND_DIST", "0.6"))   # 목표 갱신 임계(m)
@@ -74,8 +75,6 @@ VIS_EVERY = int(os.environ.get("SF_VIS_EVERY", "15"))          # N스텝마다 Y
 SAVE_DET = os.environ.get("SF_SAVE_DET", "0") == "1"           # 640 검출 출력 저장
 SAVE_DET_PATH = os.environ.get("SF_SAVE_DET_PATH",
                                os.path.expanduser("~/spot_det_640.jpg"))
-SEARCH_VX = float(os.environ.get("SF_SEARCH_VX", "0.0"))       # 소 탐색 전진(0=제자리)
-SEARCH_WZ = float(os.environ.get("SF_SEARCH_WZ", "0.4"))       # 소 탐색 회전속도(제자리 스캔)
 # ── cmd_vel 추종 PID(하부 속도 폐루프): Nav2 목표속도를 실측 base 속도로 추종 ──
 CMD_PID = os.environ.get("SF_CMD_PID", "1") == "1"
 PID_KP = float(os.environ.get("SF_PID_KP", "0.6"))            # 선속도 P
@@ -86,6 +85,7 @@ PID_KI_W = float(os.environ.get("SF_PID_KI_W", "0.2"))       # 각속도 I
 PID_I_CLAMP = float(os.environ.get("SF_PID_I_CLAMP", "0.5")) # 적분 windup 한계
 PID_VX_LIM = float(os.environ.get("SF_PID_VX_LIM", "1.2"))   # 보정후 vx 한계
 PID_WZ_LIM = float(os.environ.get("SF_PID_WZ_LIM", "1.5"))   # 보정후 wz 한계
+STABLE_WAIT = os.environ.get("SF_STABLE_WAIT", "1") == "1"   # 시작 대기 중 베이스 고정(안정 기립)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--task", default=TASK)
@@ -553,6 +553,10 @@ def detect_tail_world(model, rgb_annot, depth_annot, cam_K, cwp, cwq, device):
         return None
     kps = r.keypoints.data.cpu().numpy()           # (n,14,3)
     bi = int(np.argmax(r.boxes.conf.cpu().numpy()))   # 가장 신뢰 높은 소
+    # 오검출/원거리 거름: 소 bbox 가 충분히 커야(=가까워야) 신뢰(근거리 검출은 6cm로 정확).
+    _box = r.boxes.xyxy.cpu().numpy()[bi]
+    if float(_box[3] - _box[1]) < MIN_BBOX_FRAC * rgb.shape[0]:
+        return None
     tail = kps[bi, TAIL_KPT]                        # [x, y, conf]
     if float(tail[2]) < KPT_CONF:
         return None
@@ -1133,6 +1137,21 @@ def main():
             #  else: _act = _pa
             _act = _pa   # 대기(정지) 중 완전 정지 위해 다리 바이어스 제거(바이어스가 드리프트 유발)
             obs, _, _, _, _ = env.step(_act)
+
+        # ── 시작 대기 중 안정 자세 — 드리프트가 임계 초과할 때만 살짝 재중심(매스텝 텔레포트 금지:
+        #  매스텝 write_root_pose 는 물리 솔버와 충돌해 불안정/크래시. 임계 초과시 1회 보정만).
+        if STABLE_WAIT and state != "RECOVERY" and not nav_active:
+            if math.hypot(rx - SX, ry - SY) > 0.4:     # 시작점에서 0.4m 이상 밀렸을 때만
+                with torch.inference_mode():           # 필수: sim write 는 inference_mode 안에서
+                    _rsw = robot.data.root_state_w.clone()
+                    _rsw[:, 0], _rsw[:, 1] = SX, SY
+                    _yw = float(euler_xyz_from_quat(robot.data.root_quat_w[0].unsqueeze(0))[2][0])
+                    _rsw[:, 3] = math.cos(_yw / 2.0)
+                    _rsw[:, 4] = 0.0
+                    _rsw[:, 5] = 0.0
+                    _rsw[:, 6] = math.sin(_yw / 2.0)
+                    robot.write_root_pose_to_sim(_rsw[:, :7])
+                    robot.write_root_velocity_to_sim(torch.zeros_like(_rsw[:, 7:13]))
 
         # odom/tf (시작점 상대 평면)
         rs = robot.data.root_state_w[0]
