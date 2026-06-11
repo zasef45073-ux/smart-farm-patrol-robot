@@ -27,7 +27,7 @@ from launch_ros.actions import Node, SetParameter
 def generate_launch_description():
     pkg_share = get_package_share_directory("smart_farm_spot")
     default_params = os.path.join(pkg_share, "config", "nav2_params.yaml")
-    default_map = os.path.join(pkg_share, "maps", "environment_0609.yaml")
+    default_map = os.path.join(pkg_share, "maps", "environment_final.yaml")
 
     use_sim_time = LaunchConfiguration("use_sim_time")
     params_file = LaunchConfiguration("params_file")

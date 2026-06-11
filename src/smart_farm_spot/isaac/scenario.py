@@ -33,7 +33,7 @@ _ASSETS = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
 TASK = "Isaac-Velocity-Rough-SpotArm-Play-v0"
 POLICY = os.environ.get("SF_POLICY", os.path.join(_ASSETS, "policy", "policy.pt"))
-ENV_USD = os.path.join(_ASSETS, "scene", "environment_light.usd")
+ENV_USD = os.path.join(_ASSETS, "scene", "environment_final.usd")
 COW_USD = os.path.join(_ASSETS, "scene", "models", "cow_eat.usd")
 COW_TEX = os.path.join(_ASSETS, "scene", "textures", "cow_fbx",
                        "RSG_Shepherd_Pack_FBX", "Cow", "Textures", "T_Cow_B.png")

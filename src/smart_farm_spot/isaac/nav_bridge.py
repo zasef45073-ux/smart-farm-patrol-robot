@@ -89,7 +89,7 @@ def _asset_exists(p):
     return p.startswith("omniverse://") or os.path.exists(p)
 
 # 축사 환경 (가벼운 모델) — scene/ 안에 props·textures 함께 있어 상대참조 정상
-ENV_USD  = _scene(["environment_light.usd"])
+ENV_USD  = _scene(["environment_final.usd"])
 ENV_PRIM = "/World/Environment"
 
 # 소 1마리 (ground-truth) — 위치를 map→cow TF 로 발행

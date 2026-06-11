@@ -33,7 +33,7 @@ TASK = "Isaac-Velocity-Rough-SpotArm-Play-v0"
 # 정책: SF_POLICY 로 지정(안정 검증판 권장: spot_flat/2026-06-07_14-01-53/exported/policy.pt).
 #  최신이 더 좋은 게 아님 — 안정 버전 고정. 이 파일은 읽기만(절대 변경 안 함).
 POLICY = os.environ.get("SF_POLICY", os.path.join(_ASSETS, "policy", "policy.pt"))
-ENV_USD = os.path.join(_ASSETS, "scene", "environment_light.usd")
+ENV_USD = os.path.join(_ASSETS, "scene", "environment_final.usd")
 HOME = os.path.expanduser("~")
 
 RES = (320, 320)                                   # 전부 고정 320x320

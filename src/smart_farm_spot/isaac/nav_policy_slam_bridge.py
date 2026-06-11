@@ -11,7 +11,7 @@ nav_policy_slam_bridge.py
     → height_scan(187) 유효 = 235차원 그대로. (평면화하면 48차원으로 죽음)
   - **마찰계수 영역 분리**: 전역 terrain 마찰 = 통로(기본 0.7),
     그 위에 배변 우리 저마찰 패치(기본 0.45) 콜라이더를 덮음.
-  - 축사 USD(environment_light.usd) 로드 → 벽이 라이다/SLAM 피처.
+  - 축사 USD(environment_final.usd) 로드 → 벽이 라이다/SLAM 피처.
   - RTX 라이다 → /scan, base_link→lidar_frame static TF.
   - map→odom 은 **발행 안 함**(SLAM_toolbox 가 발행). odom/tf(odom→base)/clock 만.
 
@@ -35,7 +35,7 @@ _ASSETS = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
 TASK = "Isaac-Velocity-Rough-SpotArm-Play-v0"
 POLICY = os.path.join(_ASSETS, "policy", "policy.pt")
-ENV_USD = os.path.join(_ASSETS, "scene", "environment_light.usd")
+ENV_USD = os.path.join(_ASSETS, "scene", "environment_final.usd")
 
 # ── 마찰계수 (마찰존) ───────────────────────────────────────────────
 CORRIDOR_FRICTION = float(os.environ.get("SF_CORRIDOR_FRICTION", "0.7"))  # 통로
