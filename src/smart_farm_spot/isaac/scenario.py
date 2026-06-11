@@ -1067,7 +1067,35 @@ def main():
                 _armt = arm_open_vec * (1.0 - _ins.arm_t) + insp_arm_vec * _ins.arm_t
                 robot.set_joint_position_target(_armt.unsqueeze(0), joint_ids=arm_ids)
                 if _ins.capture:
-                    print("  📸 [검사] 유방 RGB-D 촬영 시점 — (저장/hotspot/클라우드 연계 지점)")
+                    # RGB-D 저장 + 유방염 열점(hotspot) 검출 → 클라우드 전송용 레코드
+                    try:
+                        import sys as _sys2, json as _json2, cv2 as _cv2
+                        _root2 = os.path.dirname(_ASSETS)
+                        for _pp in (_root2, os.path.join(_root2, "wip")):
+                            if _pp not in _sys2.path:
+                                _sys2.path.insert(0, _pp)
+                        from inspection_capture import capture_paths, build_record
+                        _od = os.environ.get("SF_INSPECT_OUT", "/tmp/inspect")
+                        os.makedirs(_od, exist_ok=True)
+                        _rgb = np.asarray(rgb_annot.get_data())[..., :3]
+                        _dep = np.asarray(depth_annot.get_data())
+                        _paths = capture_paths(_od, 0, step)
+                        _cv2.imwrite(_paths["rgb"], _cv2.cvtColor(_rgb, _cv2.COLOR_RGB2BGR))
+                        np.save(_paths["depth"], _dep)
+                        _hot = None
+                        try:    # 가짜 열화상(RGB Emission) → hotspot bbox (룰 기반, 학습 불요)
+                            from thermal_processor import apply_fake_thermal, get_hotspot_bbox
+                            _hot = get_hotspot_bbox(apply_fake_thermal(_rgb))
+                        except Exception:
+                            pass
+                        _rec = build_record(0, (COW_X - SX, COW_Y - SY),
+                                            _paths["rgb"], _paths["depth"], hotspot=_hot)
+                        with open(_paths["meta"], "w") as _mf:
+                            _json2.dump(_rec, _mf)
+                        print(f"  📸 [검사] 촬영저장 {_paths['rgb']} "
+                              f"hotspot={'있음' if _hot else '없음'} → 클라우드 대기")
+                    except Exception as _e:
+                        print(f"  ⚠️ 검사 촬영 저장 실패(무시): {_e}")
             if _ins.done:
                 inspector.reset()
                 print("  ✅ 검사 완료 — 일어섬, 순찰 재개")
