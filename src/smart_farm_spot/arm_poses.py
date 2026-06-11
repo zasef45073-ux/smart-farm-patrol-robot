@@ -22,6 +22,9 @@ import os
 # Spot 팔 6관절 (순서 고정)
 ARM_JOINTS = ["arm0_sh0", "arm0_sh1", "arm0_el0", "arm0_el1", "arm0_wr0", "arm0_wr1"]
 
+# Spot 다리 관절 접미사: _hx(고관절 외전) / _hy(피치) / _kn(무릎)
+LEG_SUFFIXES = ("_hx", "_hy", "_kn")
+
 
 def _f(env, default):
     return float(os.environ.get(env, str(default)))
@@ -86,3 +89,44 @@ def transition_progress(step, start_step, duration):
         return 1.0
     t = (step - start_step) / float(duration)
     return 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
+
+
+# ── 앉기(sit/crouch) — 다리 자세 ──────────────────────────────────────
+# "후방 이동 후 앉아서 검사": 다리를 정책→위치제어로 전환해 몸을 낮춘다.
+#   · CoM 낮아짐 + 베이스 지면 근접 → 매우 안정(팔 검사 외란 흡수)
+#   · 카메라가 유방 높이에 가까워짐
+# ⚠️ 정책이 STAND_Z(0.62)를 유지하므로, 앉으려면 INSPECT 동안 다리를 위치제어로
+#    바꿔야 한다(정책 leg action 중지). 목표 z 는 FALL_Z(0.30) 위(예: ~0.40)로
+#    유지해 넘어짐 복구(force-stand)가 오작동하지 않게 한다.
+def leg_indices(all_joint_names):
+    """articulation 전체 관절명 → 다리 관절 인덱스."""
+    return [i for i, n in enumerate(all_joint_names) if n.endswith(LEG_SUFFIXES)]
+
+
+def sit_offsets():
+    """앉기 — stand 기본값에 더할 접미사별 오프셋(접어 몸 낮춤).
+
+    부호/크기는 USD 관절 규약 의존 → in-sim 튜닝(SF_SIT_*). 기본값은 시작점.
+    """
+    return {"_hy": _f("SF_SIT_HY", 0.6),    # 고관절 피치 굽힘(엉덩이 내림)
+            "_kn": _f("SF_SIT_KN", -0.9),   # 무릎 더 굽힘(몸 낮춤)
+            "_hx": _f("SF_SIT_HX", 0.0)}    # 외전(보통 0; 필요시 지지면 확대)
+
+
+def sit_leg_targets(default_positions, joint_names, offsets=None):
+    """stand 기본 관절위치 + 다리 접미사 오프셋 → 앉기 target(다리만 변경).
+
+    Args:
+        default_positions: stand 시 전체 관절위치(리스트)
+        joint_names:        같은 순서의 전체 관절명
+        offsets:            접미사→오프셋(미지정 시 sit_offsets())
+    Returns:
+        앉기 target 전체 벡터(다리 관절만 오프셋 적용, 그 외 동일)
+    """
+    offsets = offsets or sit_offsets()
+    out = list(default_positions)
+    for i, n in enumerate(joint_names):
+        for suf, d in offsets.items():
+            if n.endswith(suf):
+                out[i] = default_positions[i] + d
+    return out

@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import arm_poses  # noqa: E402
 from arm_poses import (  # noqa: E402
     ARM_JOINTS, arm_indices, clamp_to_limits, inspect_udder_pose,
-    lerp_pose, pose_vector, transition_progress,
+    leg_indices, lerp_pose, pose_vector, sit_leg_targets, transition_progress,
 )
 
 
@@ -76,3 +76,26 @@ def test_transition_progress():
     assert transition_progress(200, 100, 60) == pytest.approx(1.0)   # 완료(클램프)
     assert transition_progress(50, 100, 60) == pytest.approx(0.0)    # 시작 전
     assert transition_progress(5, 0, 0) == pytest.approx(1.0)        # duration 0 → 즉시
+
+
+# ── 앉기(sit) 다리 ────────────────────────────────────────────────────
+def test_leg_indices_by_suffix():
+    allj = ["fl_hx", "fl_hy", "fl_kn", "arm0_sh0", "fr_kn", "imu"]
+    assert leg_indices(allj) == [0, 1, 2, 4]          # 팔/비다리 제외
+
+
+def test_sit_targets_offsets_only_legs():
+    allj = ["fl_hy", "fl_kn", "arm0_el0"]
+    default = [0.5, -1.0, 2.0]
+    out = sit_leg_targets(default, allj, offsets={"_hy": 0.6, "_kn": -0.9})
+    assert out[0] == pytest.approx(1.1)               # hy + 0.6
+    assert out[1] == pytest.approx(-1.9)              # kn - 0.9
+    assert out[2] == pytest.approx(2.0)               # 팔 관절 불변
+
+
+def test_sit_targets_preserves_length_and_nonleg():
+    allj = ["hl_hx", "spine", "hr_kn"]
+    default = [0.0, 9.9, 0.0]
+    out = sit_leg_targets(default, allj, offsets={"_hx": 0.1, "_kn": -0.5})
+    assert len(out) == 3
+    assert out[1] == 9.9                              # 비다리 그대로
