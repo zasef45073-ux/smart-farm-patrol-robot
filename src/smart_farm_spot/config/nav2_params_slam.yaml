@@ -70,7 +70,18 @@ local_costmap:
       height: 6
       resolution: 0.05
       footprint: "[[0.45, 0.20], [0.45, -0.20], [-0.45, -0.20], [-0.45, 0.20]]"
-      plugins: ["obstacle_layer", "inflation_layer"]
+      plugins: ["static_layer", "obstacle_layer", "keepout_filter", "inflation_layer"]
+      # 정적 맵(/map) → 실시간 local 제어에서도 존중(벽 근처 통과 방지).
+      # keepout_filter → 투명(센서 미감지) 가상벽 회피(keepout.launch.py 동반 실행).
+      #  ※ 필터 서버 미실행 시 경고만 하고 무시(코스트맵 정상). 서버 뜨면 가상벽 적용.
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+        enabled: True
+      keepout_filter:
+        plugin: "nav2_costmap_2d::KeepoutFilter"
+        enabled: True
+        filter_info_topic: "/costmap_filter_info"
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
@@ -105,12 +116,16 @@ global_costmap:
       track_unknown_space: false
       resolution: 0.05
       footprint: "[[0.45, 0.20], [0.45, -0.20], [-0.45, -0.20], [-0.45, 0.20]]"
-      # 사전맵(barn_map_server /map: 펜스+투명벽 포함) + 라이다 실시간(동적 장애물)
-      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      # 사전맵(barn_map_server /map: 펜스+투명벽 포함) + 라이다 실시간(동적 장애물) + 투명벽 keepout
+      plugins: ["static_layer", "obstacle_layer", "keepout_filter", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
         enabled: True
+      keepout_filter:
+        plugin: "nav2_costmap_2d::KeepoutFilter"
+        enabled: True
+        filter_info_topic: "/costmap_filter_info"
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True

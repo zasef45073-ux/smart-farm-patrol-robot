@@ -33,7 +33,7 @@ _ASSETS = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
 TASK = "Isaac-Velocity-Rough-SpotArm-Play-v0"
 POLICY = os.environ.get("SF_POLICY", os.path.join(_ASSETS, "policy", "policy.pt"))
-ENV_USD = os.path.join(_ASSETS, "scene", "environment_light.usd")
+ENV_USD = os.path.join(_ASSETS, "scene", "environment_final.usd")
 COW_USD = os.path.join(_ASSETS, "scene", "models", "cow_eat.usd")
 COW_TEX = os.path.join(_ASSETS, "scene", "textures", "cow_fbx",
                        "RSG_Shepherd_Pack_FBX", "Cow", "Textures", "T_Cow_B.png")
@@ -45,12 +45,18 @@ CORRIDOR_FRICTION = float(os.environ.get("SF_CORRIDOR_FRICTION", "0.7"))
 # 소: 로봇 시작(원점) 기준 상대 월드좌표 + 바라보는 yaw(도)
 COW_DX, COW_DY = (float(v) for v in os.environ.get("SF_COW_XY", "3.0,0.0").split(","))
 COW_YAW = math.radians(float(os.environ.get("SF_COW_YAW", "0")))   # +x 향함
+# 소 마릿수: 1=데모(기본), 5=시나리오(간격 배치). SF_COW_SPACING=옆 간격(m).
+COW_COUNT = int(os.environ.get("SF_COW_COUNT", "1"))
+COW_SPACING = float(os.environ.get("SF_COW_SPACING", "2.5"))
 REAR_DIST = float(os.environ.get("SF_REAR_DIST", "2.4"))           # 후방 정차 거리(m) — 소 몸통(~3.2m) 밖
 DETECT_RANGE = float(os.environ.get("SF_DETECT_RANGE", "2.2"))     # 소 발견 반경(m)
 SPEED = float(os.environ.get("SF_SPEED", "0.9"))                   # 최대 전진(m/s)
 GOAL_R = float(os.environ.get("SF_GOAL_R", "0.45"))               # 도착 판정(m)
 FALL_Z = float(os.environ.get("SF_FALL_Z", "0.30"))               # base z 이하면 넘어짐
 STAND_Z = float(os.environ.get("SF_STAND_Z", "0.62"))             # 강제 기립 높이
+# 후방 도착 → 앉아서 검사 (실험적). 1=활성. 외부(scenario_nav)가 도착 시 트리거파일 생성.
+INSPECT_ENABLE = int(os.environ.get("SF_INSPECT_ENABLE", "0"))
+INSPECT_TRIGGER = os.environ.get("SF_INSPECT_TRIGGER", "/tmp/scenario_inspect")
 REC_FORCE = int(os.environ.get("SF_REC_FORCE", "90"))            # 자력복구 실패 시 강제기립 스텝
 STUCK_WIN = int(os.environ.get("SF_STUCK_WIN", "100"))           # 끼임 판정 윈도(스텝)
 STUCK_DIST = float(os.environ.get("SF_STUCK_DIST", "0.25"))     # 윈도 내 이동 이하면 끼임
@@ -327,12 +333,12 @@ def bind_cow_texture(stage, cow_root, tex_path):
     return n
 
 
-def spawn_cow(stage, x, y, z, yaw, tex_path):
-    add_reference_to_stage(usd_path=COW_USD, prim_path="/World/Cow")
+def spawn_cow(stage, x, y, z, yaw, tex_path, prim="/World/Cow"):
+    add_reference_to_stage(usd_path=COW_USD, prim_path=prim)
     # scenario1 검증 비균등 스케일(=실제 소 크기). SF_COW_SCALE 는 추가 배율.
     _sv = [2.37873, 1.69315, 1.69315]
     _m = float(os.environ.get("SF_COW_SCALE", "1.0"))
-    xf = UsdGeom.Xformable(stage.GetPrimAtPath("/World/Cow"))
+    xf = UsdGeom.Xformable(stage.GetPrimAtPath(prim))
     xf.ClearXformOpOrder()
     xf.AddTranslateOp().Set(Gf.Vec3d(x, y, z))
     xf.AddRotateXYZOp().Set(Gf.Vec3f(0.0, 0.0, math.degrees(yaw)))
@@ -343,7 +349,7 @@ def spawn_cow(stage, x, y, z, yaw, tex_path):
     try:
         bb = UsdGeom.BBoxCache(Usd.TimeCode.Default(),
                                [UsdGeom.Tokens.default_]).ComputeWorldBound(
-            stage.GetPrimAtPath("/World/Cow")).ComputeAlignedRange()
+            stage.GetPrimAtPath(prim)).ComputeAlignedRange()
         sz = bb.GetMax() - bb.GetMin()
         print(f"  📏 소 크기(L×W×H): {sz[0]:.2f}×{sz[1]:.2f}×{sz[2]:.2f} m (scale={scale})")
     except Exception:
@@ -351,10 +357,10 @@ def spawn_cow(stage, x, y, z, yaw, tex_path):
     nb = 0
     if os.path.exists(tex_path):
         try:
-            nb = bind_cow_texture(stage, "/World/Cow", tex_path)
+            nb = bind_cow_texture(stage, prim, tex_path)
         except Exception as e:
             print(f"  ⚠️ 소 텍스처: {e}")
-    print(f"  ✅ 소 스폰 @ world({x:.2f},{y:.2f}) yaw={math.degrees(yaw):.0f}° (텍스처 메시 {nb})")
+    print(f"  ✅ 소 스폰 {prim} @ world({x:.2f},{y:.2f}) yaw={math.degrees(yaw):.0f}° (텍스처 메시 {nb})")
 
 
 # ─────────────────────────── RealSense 마운트 ────────────────────────
@@ -617,6 +623,21 @@ def main():
     # ── 팔 stow(접기) 준비 — 즉시 접으면 토크로 뒤집힘. **맵 구성 후 천천히** 접는다.
     #  평면정책이 무팔(spot_flat)이라 팔 뻗으면 CoM 쏠림 → stow 로 중앙화(안정).
     _jn = list(robot.joint_names)
+    # ── 팔 무게 가볍게(massless 트릭) — 무팔 강건 보행정책 그대로 안정 보행 ──
+    #  SF_ARM_LIGHT_KG>0 시 팔 링크 질량·관성을 그 값으로 낮춤(CoM 외란 제거).
+    _arm_light = float(os.environ.get("SF_ARM_LIGHT_KG", "0"))
+    if _arm_light > 0:
+        import sys as _syslm
+        _root_lm = os.path.dirname(_ASSETS)
+        if _root_lm not in _syslm.path:
+            _syslm.path.insert(0, _root_lm)
+        try:
+            from arm_mass import apply_light_arm
+            _nlm = apply_light_arm(robot, _arm_light)
+            print(f"  ✅ 팔 경량화 {_nlm}개 링크 → {_arm_light}kg "
+                  f"(CoM 외란↓ — 무팔 강건정책 안정 보행)")
+        except Exception as _elm:
+            print(f"  ⚠️ 팔 경량화 셋업 실패(무시): {_elm}")
     #  등쪽(背) 수납: 어깨(sh1)를 한계 가까이(-3.05) 위·뒤로 돌리고 팔꿈치(el0)를
     #  한계 가까이(3.05) 완전히 접어 → 팔(전완)이 등 위에 눕는다. CoM 최저·중앙.
     _stow = {"arm0_sh0": float(os.environ.get("SF_STOW_SH0", "0.0")),
@@ -762,6 +783,15 @@ def main():
         cow_fwd = (1.0, 0.0); half_fwd = _lx / 2.0
     else:
         cow_fwd = (0.0, 1.0); half_fwd = _ly / 2.0
+    # ── 시나리오용 추가 소(간격 배치) — cow0 옆으로 COW_SPACING 씩. 데모=1마리면 스킵 ──
+    if COW_COUNT > 1:
+        _perp = (-cow_fwd[1], cow_fwd[0])    # 몸 길이축 수직 = 옆줄 방향
+        for _i in range(1, COW_COUNT):
+            _cx = COW_X + _perp[0] * _i * COW_SPACING
+            _cy = COW_Y + _perp[1] * _i * COW_SPACING
+            spawn_cow(stage, _cx, _cy, COW_Z, cow_yaw, COW_TEX, prim=f"/World/Cow_{_i:02d}")
+        print(f"  🐄 시나리오 소 {COW_COUNT}마리 배치(간격 {COW_SPACING}m) — cow0=검사기준")
+
     TAIL_X = COW_X + TAIL_SIGN * cow_fwd[0] * half_fwd          # 꼬리 끝
     TAIL_Y = COW_Y + TAIL_SIGN * cow_fwd[1] * half_fwd
     REAR_X = TAIL_X + TAIL_SIGN * cow_fwd[0] * BEHIND           # 꼬리 1.5m 뒤
@@ -940,6 +970,34 @@ def main():
     vis_goal_xy = None   # 마지막으로 파일에 쓴 후방 목표(world) — 갱신 임계 판정용
     pid_vx_i = pid_wz_i = 0.0      # cmd_vel 추종 PID 적분항
     pid_vx_pe = pid_wz_pe = 0.0    # cmd_vel 추종 PID 직전 오차(D항)
+
+    # ── INSPECT(후방 도착→앉아서 검사) 셋업 — 실험적, SF_INSPECT_ENABLE=1 로만 ──
+    inspector = None
+    leg_ids = []
+    sit_leg_vec = stand_leg_vec = insp_arm_vec = None
+    if INSPECT_ENABLE and arm_ids:
+        try:
+            import sys as _sys
+            _root = os.path.dirname(_ASSETS)
+            if _root not in _sys.path:
+                _sys.path.insert(0, _root)
+            from inspect_sequence import InspectSequence
+            from arm_poses import leg_indices, sit_leg_targets, pose_vector, inspect_udder_pose
+            inspector = InspectSequence()
+            leg_ids = leg_indices(_jn)
+            _def = robot.data.default_joint_pos[0].detach().cpu().tolist()
+            _sit = sit_leg_targets(_def, _jn)
+            sit_leg_vec = torch.tensor([_sit[i] for i in leg_ids], device=device)
+            stand_leg_vec = torch.tensor([_def[i] for i in leg_ids], device=device)
+            insp_arm_vec = torch.tensor(
+                pose_vector(inspect_udder_pose(), [_jn[i] for i in arm_ids]),
+                device=device, dtype=arm_open_vec.dtype)
+            print(f"  ✅ INSPECT(앉아서 검사) 활성 — 다리 {len(leg_ids)} 팔 {len(arm_ids)} "
+                  f"트리거={INSPECT_TRIGGER}")
+        except Exception as _e:
+            print(f"  ⚠️ INSPECT 셋업 실패(무시): {_e}")
+            inspector = None
+
     while simulation_app.is_running():
         pos = robot.data.root_pos_w[0]
         rx, ry, rz = float(pos[0]), float(pos[1]), float(pos[2])
@@ -1004,11 +1062,68 @@ def main():
                     pid_vx_pe, pid_wz_pe = _ev, _ew
                     vx = max(-PID_VX_LIM, min(PID_VX_LIM, vx))
                     wz = max(-PID_WZ_LIM, min(PID_WZ_LIM, wz))
+        # ── INSPECT: 후방 도착 → 앉아서 검사 (실험적, 기본 OFF) ──
+        #  주의: 다리 sit target 은 위치제어로 덮어쓰지만, 아래 env.step(정책액션)이
+        #  다리 target 을 다시 쓰므로 **정책이 sit 을 거스를 수 있다**. 완전한 앉기는
+        #  정지구간 정책 leg-action 억제(또는 sit-capable 정책)가 필요 → in-sim 검증 대상.
+        #  cmd 정지 + 팔 검사자세 + 촬영 트리거는 그대로 동작한다.
+        _inspecting = False
+        if inspector is not None:
+            if not inspector.is_active() and os.path.exists(INSPECT_TRIGGER):
+                inspector.start(step)
+                try:
+                    os.remove(INSPECT_TRIGGER)
+                except OSError:
+                    pass
+                print(f"  ★ INSPECT 시작(step={step}) — 정지→앉기→검사")
+            _ins = inspector.update(step)
+            _inspecting = _ins.active
+            if _ins.active:
+                vx, wz = 0.0, 0.0                       # 검사 중 주행 금지
+                if leg_ids:
+                    _legt = stand_leg_vec * (1.0 - _ins.leg_t) + sit_leg_vec * _ins.leg_t
+                    robot.set_joint_position_target(_legt.unsqueeze(0), joint_ids=leg_ids)
+                _armt = arm_open_vec * (1.0 - _ins.arm_t) + insp_arm_vec * _ins.arm_t
+                robot.set_joint_position_target(_armt.unsqueeze(0), joint_ids=arm_ids)
+                if _ins.capture:
+                    # RGB-D 저장 + 유방염 열점(hotspot) 검출 → 클라우드 전송용 레코드
+                    try:
+                        import sys as _sys2, json as _json2, cv2 as _cv2
+                        _root2 = os.path.dirname(_ASSETS)
+                        for _pp in (_root2, os.path.join(_root2, "wip")):
+                            if _pp not in _sys2.path:
+                                _sys2.path.insert(0, _pp)
+                        from inspection_capture import capture_paths, build_record
+                        _od = os.environ.get("SF_INSPECT_OUT", "/tmp/inspect")
+                        os.makedirs(_od, exist_ok=True)
+                        _rgb = np.asarray(rgb_annot.get_data())[..., :3]
+                        _dep = np.asarray(depth_annot.get_data())
+                        _paths = capture_paths(_od, 0, step)
+                        _cv2.imwrite(_paths["rgb"], _cv2.cvtColor(_rgb, _cv2.COLOR_RGB2BGR))
+                        np.save(_paths["depth"], _dep)
+                        _hot = None
+                        try:    # 가짜 열화상(RGB Emission) → hotspot bbox (룰 기반, 학습 불요)
+                            from thermal_processor import apply_fake_thermal, get_hotspot_bbox
+                            _hot = get_hotspot_bbox(apply_fake_thermal(_rgb))
+                        except Exception:
+                            pass
+                        _rec = build_record(0, (COW_X - SX, COW_Y - SY),
+                                            _paths["rgb"], _paths["depth"], hotspot=_hot)
+                        with open(_paths["meta"], "w") as _mf:
+                            _json2.dump(_rec, _mf)
+                        print(f"  📸 [검사] 촬영저장 {_paths['rgb']} "
+                              f"hotspot={'있음' if _hot else '없음'} → 클라우드 대기")
+                    except Exception as _e:
+                        print(f"  ⚠️ 검사 촬영 저장 실패(무시): {_e}")
+            if _ins.done:
+                inspector.reset()
+                print("  ✅ 검사 완료 — 일어섬, 순찰 재개")
+
         cmd_term.vel_command_b[:, 0] = vx
         cmd_term.vel_command_b[:, 1] = 0.0
         cmd_term.vel_command_b[:, 2] = wz
         # 팔: 펼침(extended) 자세로 부드럽게 전환 후 유지(손카메라가 소를 향함, 낮아 안정).
-        if arm_ids:
+        if arm_ids and not _inspecting:
             _od = 100  # ~2s lerp(급변 방지)
             if step < _od:
                 _t = step / _od

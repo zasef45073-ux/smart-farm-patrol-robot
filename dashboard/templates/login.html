@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>로그인 · 축사 자율 순찰 로봇</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f6f9;
+    --surface: #ffffff;
+    --surface2: #f0f2f5;
+    --border: #dce1e8;
+    --text-primary: #1a1f2e;
+    --text-secondary: #4a5568;
+    --text-muted: #9aa3b0;
+    --accent: #3b82f6;
+    --danger: #e53e3e;
+    --ok: #276749;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .login-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 40px 48px;
+    width: 100%;
+    max-width: 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .login-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .login-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 8px var(--ok);
+    animation: pulse 2s infinite;
+    margin-bottom: 4px;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .login-title {
+    font-size: 15px; font-weight: 600;
+    color: var(--text-primary); letter-spacing: -0.3px;
+  }
+  .login-sub {
+    font-size: 11px; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  label {
+    font-size: 11px; font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.8px;
+  }
+  input {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: 'Noto Sans KR', sans-serif;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input:focus { border-color: var(--accent); }
+  .login-btn {
+    padding: 11px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px; font-weight: 600;
+    font-family: 'Noto Sans KR', sans-serif;
+    cursor: pointer;
+    transition: background 0.15s;
+    letter-spacing: 0.3px;
+  }
+  .login-btn:hover { background: #2563eb; }
+  .error-msg {
+    font-size: 12px;
+    color: var(--danger);
+    text-align: center;
+    padding: 8px 12px;
+    background: #fff5f5;
+    border: 1px solid #feb2b2;
+    border-radius: 6px;
+  }
+</style>
+</head>
+<body>
+<div class="login-box">
+  <div class="login-header">
+    <div class="login-dot"></div>
+    <div class="login-title">축사 자율 순찰 로봇</div>
+    <div class="login-sub">건강 모니터링 시스템</div>
+  </div>
+
+  {% if error %}
+  <div class="error-msg">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/login" style="display:flex; flex-direction:column; gap:16px;">
+    <div class="form-group">
+      <label for="username">아이디</label>
+      <input type="text" id="username" name="username" placeholder="아이디 입력" autocomplete="username" required>
+    </div>
+    <div class="form-group">
+      <label for="password">비밀번호</label>
+      <input type="password" id="password" name="password" placeholder="비밀번호 입력" autocomplete="current-password" required>
+    </div>
+    <button type="submit" class="login-btn">로그인</button>
+  </form>
+</div>
+</body>
+</html>

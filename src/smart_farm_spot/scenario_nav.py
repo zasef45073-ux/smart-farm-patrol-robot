@@ -111,7 +111,12 @@ class PatrolSeek(Node):
 
     def _on_seek_result(self, fut):
         if fut.result().status == 4:
-            self.get_logger().info("★ 소 후방(꼬리쪽) 도착! 검사 자세 — 시나리오 완료.")
+            self.get_logger().info("★ 소 후방(꼬리쪽) 도착! — 앉아서 검사 트리거")
+            # scenario.py(Isaac)의 INSPECT(앉기→검사)를 발동: 트리거 파일 생성
+            try:
+                open(os.environ.get("SF_INSPECT_TRIGGER", "/tmp/scenario_inspect"), "w").close()
+            except OSError as e:
+                self.get_logger().warn(f"INSPECT 트리거 생성 실패: {e}")
         # SEEK 유지: 검출 갱신되면 _watch_cow가 재전송
 
     # ── 순찰 ──

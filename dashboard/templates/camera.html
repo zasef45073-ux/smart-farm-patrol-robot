@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>실시간 카메라 - 축사 자율 순찰 로봇</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f6f9;
+    --surface: #ffffff;
+    --surface2: #f0f2f5;
+    --border: #dce1e8;
+    --text-primary: #1a1f2e;
+    --text-secondary: #4a5568;
+    --text-muted: #9aa3b0;
+    --ok: #276749;
+    --ok-bg: #f0fff4;
+    --ok-border: #9ae6b4;
+    --accent: #3b82f6;
+    --sidebar-w: 220px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── TOPBAR ── */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px; height: 56px; flex-shrink: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar-title {
+    font-size: 14px; font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--ok); box-shadow: 0 0 6px var(--ok);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .topbar-center { display:flex; flex-direction:column; align-items:center; gap:2px; }
+  .topbar-center .label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; }
+  .topbar-center .date  { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--text-secondary); }
+  .topbar-right { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+  .topbar-right .label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; }
+  .topbar-right .time  { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--accent); }
+
+  /* ── LAYOUT ── */
+  .layout {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 0;
+    display: flex; flex-direction: column; gap: 4px;
+    flex-shrink: 0;
+  }
+  .sidebar-section {
+    padding: 4px 16px 8px;
+    font-size: 10px; font-weight: 600;
+    color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.2px;
+    margin-top: 8px;
+  }
+  .sidebar-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 16px;
+    font-size: 13px; color: var(--text-secondary);
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: all 0.15s; text-decoration: none;
+  }
+  .sidebar-item:hover { background: var(--surface2); color: var(--text-primary); }
+  .sidebar-item.active {
+    background: rgba(88,166,255,0.08);
+    color: var(--accent); border-left-color: var(--accent); font-weight: 500;
+  }
+  .sidebar-item .icon { font-size:15px; width:18px; text-align:center; }
+
+  /* ── MAIN ── */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 24px 28px 0;
+    min-height: 0;
+    gap: 12px;
+  }
+
+  /* ── CAM HEADER ── */
+  .cam-header {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-shrink: 0;
+  }
+  .cam-title {
+    font-size: 13px; font-weight: 600; color: var(--text-primary);
+    letter-spacing: -0.2px;
+  }
+  .badge-live {
+    font-size: 10px; padding: 3px 10px; border-radius: 20px;
+    font-family: 'JetBrains Mono', monospace; font-weight: 500;
+    background: rgba(63,185,80,0.15); color: var(--ok);
+    border: 1px solid var(--ok-border);
+  }
+  .badge-offline {
+    font-size: 10px; padding: 3px 10px; border-radius: 20px;
+    font-family: 'JetBrains Mono', monospace; font-weight: 500;
+    background: rgba(72,79,88,0.2); color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+
+  /* ── CAMERA BOX ── */
+  .camera-box {
+    width: 100%;
+    max-width: 800px;
+    aspect-ratio: 16 / 9; /* 비율 유지 */
+    background: #0a0c10;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 24px;
+    overflow: hidden;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .camera-box img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    display: none;
+  }
+  .cam-placeholder {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 14px; text-align: center;
+  }
+  .cam-placeholder .icon   { font-size: 52px; opacity: 0.18; }
+  .cam-placeholder .title  { font-size: 15px; font-weight: 500; color: var(--text-secondary); }
+  .cam-placeholder .sub    { font-size: 12px; color: var(--text-muted); line-height: 1.7; }
+
+  /* 오버레이 배지 */
+  .cam-overlay-status {
+    position: absolute; top: 14px; right: 14px;
+    background: rgba(0,0,0,0.75);
+    border: 1px solid var(--border);
+    border-radius: 6px; padding: 5px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--text-muted);
+    display: flex; align-items: center; gap: 7px;
+    backdrop-filter: blur(4px);
+  }
+  .cam-overlay-status .led {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--text-muted);
+  }
+  .cam-overlay-status.live { color: var(--ok); border-color: var(--ok-border); }
+  .cam-overlay-status.live .led {
+    background: var(--ok);
+    box-shadow: 0 0 6px var(--ok);
+    animation: pulse 2s infinite;
+  }
+
+
+
+
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="topbar-title">
+    <span class="dot"></span>
+    축사 자율 순찰 로봇 · 건강 모니터링
+  </div>
+  <div class="topbar-center">
+    <span class="label">현재 날짜 / 시간</span>
+    <span class="date" id="cur-date">—</span>
+  </div>
+  <div class="topbar-right">
+    <span class="label">업데이트 시간</span>
+    <span class="time" id="last-update">—</span>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-section">메뉴</div>
+    <a class="sidebar-item" href="/">
+      <span class="icon">🐄</span> 소 상태
+    </a>
+    <a class="sidebar-item active" href="/camera">
+      <span class="icon">📷</span> 실시간 카메라
+    </a>
+    <a class="sidebar-item" href="/edr">
+      <span class="icon">📋</span> EDR 관리
+    </a>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- 헤더 -->
+    <div class="cam-header">
+      <span class="cam-title">실시간 카메라</span>
+      <span id="top-badge" class="badge-offline">● 연결 대기</span>
+    </div>
+
+    <!-- 영상 박스 -->
+    <div class="camera-box" id="camera-box">
+
+      <!-- 대기 화면 -->
+      <div class="cam-placeholder" id="cam-placeholder">
+        <span class="icon">📷</span>
+        <span class="title">카메라 영상 (실시간)</span>
+        <span class="sub">
+          Isaac Sim → camera_stream.py<br>
+          → POST /api/camera → 여기 표시
+        </span>
+      </div>
+
+      <!-- 실제 이미지 -->
+      <img id="cam-img" alt="카메라 피드">
+
+      <!-- 우상단 상태 -->
+      <div class="cam-overlay-status" id="cam-status">
+        <span class="led"></span>
+        <span id="cam-status-text">OFFLINE</span>
+      </div>
+
+
+    </div>
+
+  </main>
+</div>
+<script>
+  // ── 카메라 WebSocket 연결 ──
+  const imgElement = document.getElementById('cam-img');
+  const ph = document.getElementById('cam-placeholder');
+  const status = document.getElementById('cam-status');
+  const statusTxt = document.getElementById('cam-status-text');
+  const badge = document.getElementById('top-badge');
+
+  // FastAPI 서버 주소에 맞춰 ws:// 또는 wss:// 사용
+  // ── 시계 ──
+  function tick() {
+    const now = new Date();
+    const ymd = now.getFullYear() + '-' +
+      String(now.getMonth()+1).padStart(2,'0') + '-' +
+      String(now.getDate()).padStart(2,'0');
+    const hms = now.toLocaleTimeString('ko-KR', {hour12:false});
+    document.getElementById('cur-date').textContent = ymd + '  ' + hms;
+  }
+  tick(); setInterval(tick, 1000);
+
+  const socket = new WebSocket("ws://" + window.location.host + "/ws/camera");
+
+  socket.onmessage = (event) => {
+    // 서버에서 받은 데이터를 이미지로 변환
+    imgElement.src = 'data:image/jpeg;base64,' + event.data;
+    imgElement.style.display = 'block';
+    ph.style.display = 'none';
+
+    // 상태 UI 업데이트
+    status.classList.add('live');
+    statusTxt.textContent = 'LIVE';
+    badge.className = 'badge-live';
+    badge.textContent = '● LIVE';
+
+    document.getElementById('last-update').textContent =
+      new Date().toLocaleTimeString('ko-KR', {hour12:false});
+  };
+
+  socket.onclose = () => {
+    status.classList.remove('live');
+    statusTxt.textContent = 'OFFLINE';
+    badge.className = 'badge-offline';
+    badge.textContent = '● 연결 대기';
+  };
+</script>
+</body>
+</html>
+
+<!-- 
+<script>
+  const API = '';
+  let frameCount = 0;
+
+  // ── 시계 ──
+  function tick() {
+    const now = new Date();
+    const ymd = now.getFullYear() + '-' +
+      String(now.getMonth()+1).padStart(2,'0') + '-' +
+      String(now.getDate()).padStart(2,'0');
+    const hms = now.toLocaleTimeString('ko-KR', {hour12:false});
+    document.getElementById('cur-date').textContent = ymd + '  ' + hms;
+  }
+  tick(); setInterval(tick, 1000);
+
+  // ── 카메라 폴링 ──
+  async function loadCamera() {
+    try {
+      const res = await fetch(API + '/api/camera/latest');
+      const d   = await res.json();
+
+      const img       = document.getElementById('cam-img');
+      const ph        = document.getElementById('cam-placeholder');
+      const status    = document.getElementById('cam-status');
+      const statusTxt = document.getElementById('cam-status-text');
+      const badge     = document.getElementById('top-badge');
+
+      if (d.image) {
+        img.src = 'data:image/jpeg;base64,' + d.image;
+        img.style.display = 'block';
+        ph.style.display  = 'none';
+
+        status.classList.add('live');
+        statusTxt.textContent = 'LIVE';
+        badge.className   = 'badge-live';
+        badge.textContent = '● LIVE';
+
+        document.getElementById('last-update').textContent =
+          new Date().toLocaleTimeString('ko-KR', {hour12:false});
+        frameCount++;
+      } else {
+        img.style.display = 'none';
+        ph.style.display  = 'flex';
+
+        status.classList.remove('live');
+        statusTxt.textContent = 'OFFLINE';
+        badge.className   = 'badge-offline';
+        badge.textContent = '● 연결 대기';
+      }
+    } catch {
+      document.getElementById('cam-status-text').textContent = 'ERROR';
+      document.getElementById('cam-status').classList.remove('live');
+    }
+  }
+
+  loadCamera();
+  setInterval(loadCamera, 2000);
+</script> -->

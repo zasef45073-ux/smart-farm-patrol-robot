@@ -1,0 +1,6 @@
+image: environment_final.png
+resolution: 0.05
+origin: [-18.425000762939455, -18.374999618530275, 0.0000]
+negate: 0
+occupied_thresh: 0.65
+free_thresh: 0.196

@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>축사 자율 순찰 로봇 - EDR 관리</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f4f6f9;
+    --surface: #ffffff;
+    --surface2: #f0f2f5;
+    --border: #dce1e8;
+    --text-primary: #1a1f2e;
+    --text-secondary: #4a5568;
+    --text-muted: #9aa3b0;
+    --danger: #e53e3e;
+    --danger-bg: #fff5f5;
+    --danger-border: #feb2b2;
+    --warn: #c07a00;
+    --warn-bg: #fffbeb;
+    --warn-border: #f6d860;
+    --ok: #276749;
+    --ok-bg: #f0fff4;
+    --ok-border: #9ae6b4;
+    --accent: #3b82f6;
+    --sidebar-w: 220px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── TOPBAR ── */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px; height: 56px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .topbar-title {
+    font-size: 14px; font-weight: 600; color: var(--text-primary);
+    letter-spacing: -0.3px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .topbar-title .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 6px var(--accent);
+  }
+  .topbar-center { display:flex; flex-direction:column; align-items:center; gap:2px; }
+  .topbar-center .label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; }
+  .topbar-center .date  { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--text-secondary); }
+  .topbar-right { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+  .topbar-right .label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:1px; }
+  .topbar-right .time  { font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--accent); }
+
+  /* ── LAYOUT ── */
+  .layout { display:flex; flex:1; overflow:hidden; }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 24px 0;
+    display: flex; flex-direction: column; gap: 4px;
+    flex-shrink: 0;
+  }
+  .sidebar-section {
+    padding: 4px 16px 8px;
+    font-size: 10px; font-weight: 600;
+    color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.2px;
+    margin-top: 8px;
+  }
+  .sidebar-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 16px;
+    font-size: 13px; font-weight: 400;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: all 0.15s; text-decoration: none;
+  }
+  .sidebar-item:hover { background:var(--surface2); color:var(--text-primary); }
+  .sidebar-item.active {
+    background: rgba(59,130,246,0.08);
+    color: var(--accent); border-left-color: var(--accent); font-weight: 500;
+  }
+  .sidebar-item .icon { font-size:15px; width:18px; text-align:center; }
+
+  /* ── MAIN ── */
+  .main {
+    flex: 1; padding: 28px 32px;
+    overflow-y: auto;
+    display: flex; flex-direction: column; gap: 28px;
+  }
+
+  /* ── PAGE HEADER ── */
+  .page-header {
+    display: flex; align-items: flex-start; justify-content: space-between;
+  }
+  .page-title { font-size: 18px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.4px; }
+  .page-sub   { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  /* ── SECTION ── */
+  .section-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .section-title  { font-size:13px; font-weight:600; color:var(--text-primary); letter-spacing:-0.2px; }
+  .section-box    { background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+
+  /* ── TABLE ── */
+  .data-table { width:100%; border-collapse:collapse; font-size:13px; }
+  .data-table thead tr { background:var(--surface2); border-bottom:1px solid var(--border); }
+  .data-table th {
+    padding:10px 16px; text-align:left;
+    font-size:10px; font-weight:600;
+    color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px;
+  }
+  .data-table td {
+    padding:11px 16px; color:var(--text-secondary);
+    border-bottom:1px solid var(--border);
+  }
+  .data-table tbody tr:last-child td { border-bottom:none; }
+  .data-table tbody tr:hover td { background:var(--surface2); }
+  .data-table td.mono { font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--text-primary); font-weight:500; }
+  .empty-row td { text-align:center; color:var(--text-muted); font-size:12px; padding:28px !important; }
+
+  /* ── STATUS PILLS ── */
+  .status-pill {
+    display:inline-flex; align-items:center; gap:5px;
+    padding:3px 9px; border-radius:20px; font-size:11px; font-weight:500;
+  }
+  .status-pill::before { content:''; width:5px; height:5px; border-radius:50%; background:currentColor; }
+  .status-pill.ok     { background:rgba(39,103,73,0.1);  color:var(--ok);     border:1px solid var(--ok-border); }
+  .status-pill.warn   { background:rgba(192,122,0,0.1);  color:var(--warn);   border:1px solid var(--warn-border); }
+  .status-pill.danger { background:rgba(229,62,62,0.1);  color:var(--danger); border:1px solid var(--danger-border); }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display:inline-flex; align-items:center; gap:6px;
+    padding:7px 14px; border-radius:7px; font-size:12px; font-weight:600;
+    font-family:'Noto Sans KR',sans-serif;
+    cursor:pointer; transition:all 0.15s; border:none;
+  }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-primary:hover { background:#2563eb; }
+  .btn-sm { padding:4px 10px; font-size:11px; border-radius:5px; }
+  .btn-edit   { background:var(--surface2); color:var(--text-secondary); border:1px solid var(--border); }
+  .btn-edit:hover   { background:var(--border); color:var(--text-primary); }
+  .btn-delete { background:var(--danger-bg); color:var(--danger); border:1px solid var(--danger-border); }
+  .btn-delete:hover { background:var(--danger); color:#fff; }
+  .btn-ghost { background:transparent; color:var(--text-secondary); border:1px solid var(--border); }
+  .btn-ghost:hover { background:var(--surface2); }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,0.5); z-index:200;
+    align-items:center; justify-content:center;
+  }
+  .modal-overlay.open { display:flex; }
+  .modal {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:12px; padding:32px;
+    width:420px; max-width:90%;
+    display:flex; flex-direction:column; gap:20px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.12);
+    animation:modalIn 0.2s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  @keyframes modalIn { from{transform:scale(0.92);opacity:0} to{transform:scale(1);opacity:1} }
+  .modal-header {
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .modal-title { font-size:15px; font-weight:700; color:var(--text-primary); }
+  .modal-close {
+    background:transparent; border:none; font-size:18px; cursor:pointer;
+    color:var(--text-muted); line-height:1; padding:2px 6px; border-radius:4px;
+    transition:all 0.15s;
+  }
+  .modal-close:hover { background:var(--surface2); color:var(--text-primary); }
+  .modal-body { display:flex; flex-direction:column; gap:14px; }
+  .modal-footer { display:flex; gap:10px; justify-content:flex-end; }
+
+  /* ── FORM ── */
+  .form-group { display:flex; flex-direction:column; gap:5px; }
+  .form-label { font-size:11px; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; }
+  .form-input, .form-select {
+    padding:9px 12px; border-radius:7px;
+    border:1px solid var(--border);
+    background:var(--surface); color:var(--text-primary);
+    font-size:13px; font-family:'Noto Sans KR',sans-serif;
+    outline:none; transition:border 0.15s;
+    width:100%;
+  }
+  .form-input:focus, .form-select:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
+
+  /* ── CONFIRM MODAL ── */
+  .confirm-modal {
+    background:var(--surface); border:1px solid var(--danger-border);
+    border-radius:12px; padding:28px;
+    width:360px; max-width:90%;
+    text-align:center;
+    display:flex; flex-direction:column; gap:14px;
+    box-shadow:0 8px 32px rgba(229,62,62,0.12);
+    animation:modalIn 0.2s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .confirm-icon { font-size:36px; }
+  .confirm-title { font-size:15px; font-weight:700; color:var(--danger); }
+  .confirm-body  { font-size:13px; color:var(--text-secondary); line-height:1.7; }
+  .confirm-btns  { display:flex; gap:10px; justify-content:center; margin-top:4px; }
+
+  /* ── TOAST ── */
+  #toast-container {
+    position:fixed; bottom:24px; right:24px;
+    display:flex; flex-direction:column; gap:8px;
+    z-index:9999; pointer-events:none;
+  }
+  .toast {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:8px; padding:12px 16px;
+    font-size:12px; color:var(--text-primary);
+    box-shadow:0 4px 20px rgba(0,0,0,0.12);
+    animation:slideIn 0.3s ease;
+    max-width:300px;
+  }
+  .toast.ok     { border-color:var(--ok-border); background:var(--ok-bg); }
+  .toast.danger { border-color:var(--danger-border); background:var(--danger-bg); }
+  .toast-title  { font-weight:600; margin-bottom:3px; font-size:11px; text-transform:uppercase; letter-spacing:0.5px; }
+  .toast.ok     .toast-title { color:var(--ok); }
+  .toast.danger .toast-title { color:var(--danger); }
+  .toast-body   { color:var(--text-secondary); }
+  @keyframes slideIn { from{transform:translateX(20px);opacity:0} to{transform:translateX(0);opacity:1} }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width:6px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="topbar-title">
+    <span class="dot"></span>
+    축사 자율 순찰 로봇 · EDR 관리
+  </div>
+  <div class="topbar-center">
+    <span class="label">현재 날짜 / 시간</span>
+    <span class="date" id="cur-date">—</span>
+  </div>
+  <div class="topbar-right">
+    <span class="label">페이지</span>
+    <span class="time">EDR 데이터 관리</span>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-section">메뉴</div>
+    <a class="sidebar-item" href="/">
+      <span class="icon">🐄</span> 소 상태
+    </a>
+    <a class="sidebar-item" href="/camera">
+      <span class="icon">📷</span> 실시간 카메라
+    </a>
+    <a class="sidebar-item active" href="/edr">
+      <span class="icon">📋</span> EDR 관리
+    </a>
+    <div class="sidebar-section">관리 항목</div>
+    <a class="sidebar-item" href="#cattle-section" onclick="scrollToSection(event,'cattle-section')">
+      <span class="icon">🐮</span> 소 개체 관리
+    </a>
+    <a class="sidebar-item" href="#course-section" onclick="scrollToSection(event,'course-section')">
+      <span class="icon">🗺</span> 순찰 코스
+    </a>
+    <a class="sidebar-item" href="#barn-section" onclick="scrollToSection(event,'barn-section')">
+      <span class="icon">🏠</span> 축사 동
+    </a>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <!-- PAGE HEADER -->
+    <div class="page-header">
+      <div>
+        <div class="page-title">EDR 데이터 관리</div>
+        <div class="page-sub">소 개체 · 순찰 코스 · 축사 동 CRUD 관리</div>
+      </div>
+    </div>
+
+    <!-- ══ 소 개체 관리 ══ -->
+    <div id="cattle-section">
+      <div class="section-header">
+        <span class="section-title">🐮 소 개체 관리</span>
+        <button class="btn btn-primary" onclick="openCattleAdd()">+ 소 추가</button>
+      </div>
+      <div class="section-box">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>개체 번호</th>
+              <th>무게 (kg)</th>
+              <th>출생 날짜</th>
+              <th>상태</th>
+              <th>작업</th>
+            </tr>
+          </thead>
+          <tbody id="cattle-table-body">
+            <tr class="empty-row"><td colspan="6">불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ 순찰 코스 관리 ══ -->
+    <div id="course-section">
+      <div class="section-header">
+        <span class="section-title">🗺 순찰 코스 관리</span>
+        <button class="btn btn-primary" onclick="openCourseAdd()">+ 코스 추가</button>
+      </div>
+      <div class="section-box">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>코스 번호</th>
+              <th>순찰 시간</th>
+              <th>작업</th>
+            </tr>
+          </thead>
+          <tbody id="course-table-body">
+            <tr class="empty-row"><td colspan="4">불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ 축사 동 관리 ══ -->
+    <div id="barn-section">
+      <div class="section-header">
+        <span class="section-title">🏠 축사 동 관리</span>
+        <button class="btn btn-primary" onclick="openBarnAdd()">+ 동 추가</button>
+      </div>
+      <div class="section-box">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>동 번호</th>
+              <th>비상 발생 횟수</th>
+              <th>날짜</th>
+              <th>작업</th>
+            </tr>
+          </thead>
+          <tbody id="barn-table-body">
+            <tr class="empty-row"><td colspan="5">불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="toast-container"></div>
+
+<!-- ══ CATTLE MODAL ══ -->
+<div class="modal-overlay" id="cattle-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="cattle-modal-title">소 추가</span>
+      <button class="modal-close" onclick="closeCattleModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="cattle-edit-id">
+      <div class="form-group">
+        <label class="form-label">개체 번호 *</label>
+        <input class="form-input" id="cattle-reg" placeholder="예: 1번 소" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">무게 (kg)</label>
+        <input class="form-input" id="cattle-weight" type="number" step="0.1" placeholder="예: 450.5">
+      </div>
+      <div class="form-group">
+        <label class="form-label">출생 날짜</label>
+        <input class="form-input" id="cattle-birth" type="date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">상태</label>
+        <select class="form-select" id="cattle-status">
+          <option value="정상">정상</option>
+          <option value="위험">위험</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeCattleModal()">취소</button>
+      <button class="btn btn-primary" onclick="saveCattle()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COURSE MODAL ══ -->
+<div class="modal-overlay" id="course-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="course-modal-title">코스 추가</span>
+      <button class="modal-close" onclick="closeCourseModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="course-edit-id">
+      <div class="form-group">
+        <label class="form-label">코스 번호 *</label>
+        <input class="form-input" id="course-no" placeholder="예: A코스">
+      </div>
+      <div class="form-group">
+        <label class="form-label">순찰 시간</label>
+        <input class="form-input" id="course-time" type="time" placeholder="예: 09:00">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeCourseModal()">취소</button>
+      <button class="btn btn-primary" onclick="saveCourse()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ BARN MODAL ══ -->
+<div class="modal-overlay" id="barn-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="barn-modal-title">동 추가</span>
+      <button class="modal-close" onclick="closeBarnModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="barn-edit-id">
+      <div class="form-group">
+        <label class="form-label">동 번호 *</label>
+        <input class="form-input" id="barn-no" placeholder="예: E동">
+      </div>
+      <div class="form-group">
+        <label class="form-label">비상 발생 횟수</label>
+        <input class="form-input" id="barn-emergency" type="number" min="0" value="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">날짜</label>
+        <input class="form-input" id="barn-date" type="date">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeBarnModal()">취소</button>
+      <button class="btn btn-primary" onclick="saveBarn()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CONFIRM DELETE MODAL ══ -->
+<div class="modal-overlay" id="confirm-modal">
+  <div class="confirm-modal">
+    <div class="confirm-icon">🗑</div>
+    <div class="confirm-title">삭제 확인</div>
+    <div class="confirm-body" id="confirm-body">이 항목을 삭제하시겠습니까?<br>이 작업은 되돌릴 수 없습니다.</div>
+    <div class="confirm-btns">
+      <button class="btn btn-ghost" onclick="closeConfirm()">취소</button>
+      <button class="btn btn-delete" id="confirm-ok-btn">삭제</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+
+// ── 시계 ──
+function tick() {
+  const now = new Date();
+  const ymd = now.getFullYear() + '-'
+    + String(now.getMonth()+1).padStart(2,'0') + '-'
+    + String(now.getDate()).padStart(2,'0');
+  const hms = now.toLocaleTimeString('ko-KR', {hour12:false});
+  document.getElementById('cur-date').textContent = ymd + '  ' + hms;
+}
+tick(); setInterval(tick, 1000);
+
+// ── 스크롤 ──
+function scrollToSection(e, id) {
+  e.preventDefault();
+  document.getElementById(id)?.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+// ── TOAST ──
+function showToast(msg, type='ok') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<div class="toast-title">${type === 'ok' ? '완료' : '오류'}</div><div class="toast-body">${msg}</div>`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ── STATUS 헬퍼 ──
+function statusPill(s) {
+  const cls = s === '위험' ? 'danger' : s === '주의' ? 'warn' : 'ok';
+  return `<span class="status-pill ${cls}">${s}</span>`;
+}
+
+// ────────────────────────────────────────
+//  소 개체 관리
+// ────────────────────────────────────────
+async function loadCattle() {
+  try {
+    const res = await fetch(API + '/api/edr/cattle');
+    const rows = await res.json();
+    const tbody = document.getElementById('cattle-table-body');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="6">등록된 소가 없습니다</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td class="mono">${r.id}</td>
+        <td class="mono">${r.reg_number}</td>
+        <td>${r.weight ?? '—'}</td>
+        <td>${r.birth_date ?? '—'}</td>
+        <td>${statusPill(r.status ?? '정상')}</td>
+        <td style="display:flex;gap:6px;">
+          <button class="btn btn-sm btn-edit" onclick="openCattleEdit(${r.id},'${esc(r.reg_number)}',${r.weight ?? 'null'},'${r.birth_date ?? ''}','${r.status}')">수정</button>
+          <button class="btn btn-sm btn-delete" onclick="confirmDelete('cattle',${r.id},'${esc(r.reg_number)}')">삭제</button>
+        </td>
+      </tr>`).join('');
+  } catch {
+    document.getElementById('cattle-table-body').innerHTML =
+      '<tr class="empty-row"><td colspan="6">서버 연결 실패</td></tr>';
+  }
+}
+
+function openCattleAdd() {
+  document.getElementById('cattle-modal-title').textContent = '소 추가';
+  document.getElementById('cattle-edit-id').value = '';
+  document.getElementById('cattle-reg').value = '';
+  document.getElementById('cattle-weight').value = '';
+  document.getElementById('cattle-birth').value = '';
+  document.getElementById('cattle-status').value = '정상';
+  document.getElementById('cattle-modal').classList.add('open');
+}
+
+function openCattleEdit(id, reg, weight, birth, status) {
+  document.getElementById('cattle-modal-title').textContent = '소 수정';
+  document.getElementById('cattle-edit-id').value = id;
+  document.getElementById('cattle-reg').value = reg;
+  document.getElementById('cattle-weight').value = weight ?? '';
+  document.getElementById('cattle-birth').value = birth;
+  document.getElementById('cattle-status').value = status;
+  document.getElementById('cattle-modal').classList.add('open');
+}
+
+function closeCattleModal() {
+  document.getElementById('cattle-modal').classList.remove('open');
+}
+
+async function saveCattle() {
+  const id     = document.getElementById('cattle-edit-id').value;
+  const reg    = document.getElementById('cattle-reg').value.trim();
+  const weight = document.getElementById('cattle-weight').value;
+  const birth  = document.getElementById('cattle-birth').value;
+  const status = document.getElementById('cattle-status').value;
+  if (!reg) { showToast('개체 번호를 입력하세요', 'danger'); return; }
+  const body = {
+    reg_number: reg,
+    weight: weight ? parseFloat(weight) : null,
+    birth_date: birth || null,
+    status
+  };
+  try {
+    const res = await fetch(
+      id ? API + `/api/edr/cattle/${id}` : API + '/api/edr/cattle',
+      { method: id ? 'PUT' : 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }
+    );
+    if (!res.ok) throw new Error(await res.text());
+    closeCattleModal();
+    showToast(id ? '소 정보가 수정되었습니다' : '소가 추가되었습니다');
+    loadCattle();
+  } catch(e) {
+    showToast('저장 실패: ' + e.message, 'danger');
+  }
+}
+
+// ────────────────────────────────────────
+//  순찰 코스 관리
+// ────────────────────────────────────────
+async function loadCourse() {
+  try {
+    const res = await fetch(API + '/api/edr/course');
+    const rows = await res.json();
+    const tbody = document.getElementById('course-table-body');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="4">등록된 코스가 없습니다</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td class="mono">${r.id}</td>
+        <td class="mono">${r.course_no}</td>
+        <td>${r.patrol_time ?? '—'}</td>
+        <td style="display:flex;gap:6px;">
+          <button class="btn btn-sm btn-edit" onclick="openCourseEdit(${r.id},'${esc(r.course_no)}','${r.patrol_time ?? ''}')">수정</button>
+          <button class="btn btn-sm btn-delete" onclick="confirmDelete('course',${r.id},'${esc(r.course_no)}')">삭제</button>
+        </td>
+      </tr>`).join('');
+  } catch {
+    document.getElementById('course-table-body').innerHTML =
+      '<tr class="empty-row"><td colspan="4">서버 연결 실패</td></tr>';
+  }
+}
+
+function openCourseAdd() {
+  document.getElementById('course-modal-title').textContent = '코스 추가';
+  document.getElementById('course-edit-id').value = '';
+  document.getElementById('course-no').value = '';
+  document.getElementById('course-time').value = '';
+  document.getElementById('course-modal').classList.add('open');
+}
+
+function openCourseEdit(id, no, time) {
+  document.getElementById('course-modal-title').textContent = '코스 수정';
+  document.getElementById('course-edit-id').value = id;
+  document.getElementById('course-no').value = no;
+  document.getElementById('course-time').value = time;
+  document.getElementById('course-modal').classList.add('open');
+}
+
+function closeCourseModal() {
+  document.getElementById('course-modal').classList.remove('open');
+}
+
+async function saveCourse() {
+  const id   = document.getElementById('course-edit-id').value;
+  const no   = document.getElementById('course-no').value.trim();
+  const time = document.getElementById('course-time').value;
+  if (!no) { showToast('코스 번호를 입력하세요', 'danger'); return; }
+  const body = { course_no: no, patrol_time: time || null };
+  try {
+    const res = await fetch(
+      id ? API + `/api/edr/course/${id}` : API + '/api/edr/course',
+      { method: id ? 'PUT' : 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }
+    );
+    if (!res.ok) throw new Error(await res.text());
+    closeCourseModal();
+    showToast(id ? '코스 정보가 수정되었습니다' : '코스가 추가되었습니다');
+    loadCourse();
+  } catch(e) {
+    showToast('저장 실패: ' + e.message, 'danger');
+  }
+}
+
+// ────────────────────────────────────────
+//  축사 동 관리
+// ────────────────────────────────────────
+async function loadBarn() {
+  try {
+    const res = await fetch(API + '/api/edr/barn');
+    const rows = await res.json();
+    const tbody = document.getElementById('barn-table-body');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="5">등록된 축사 동이 없습니다</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td class="mono">${r.id}</td>
+        <td class="mono">${r.barn_no}</td>
+        <td>
+          <span class="status-pill ${r.emergency_count > 0 ? 'danger' : 'ok'}">
+            ${r.emergency_count}회
+          </span>
+        </td>
+        <td>${r.date ?? '—'}</td>
+        <td style="display:flex;gap:6px;">
+          <button class="btn btn-sm btn-edit" onclick="openBarnEdit(${r.id},'${esc(r.barn_no)}',${r.emergency_count},'${r.date ?? ''}')">수정</button>
+          <button class="btn btn-sm btn-delete" onclick="confirmDelete('barn',${r.id},'${esc(r.barn_no)}')">삭제</button>
+        </td>
+      </tr>`).join('');
+  } catch {
+    document.getElementById('barn-table-body').innerHTML =
+      '<tr class="empty-row"><td colspan="5">서버 연결 실패</td></tr>';
+  }
+}
+
+function openBarnAdd() {
+  document.getElementById('barn-modal-title').textContent = '동 추가';
+  document.getElementById('barn-edit-id').value = '';
+  document.getElementById('barn-no').value = '';
+  document.getElementById('barn-emergency').value = '0';
+  document.getElementById('barn-date').value = '';
+  document.getElementById('barn-modal').classList.add('open');
+}
+
+function openBarnEdit(id, no, emergency, date) {
+  document.getElementById('barn-modal-title').textContent = '동 수정';
+  document.getElementById('barn-edit-id').value = id;
+  document.getElementById('barn-no').value = no;
+  document.getElementById('barn-emergency').value = emergency;
+  document.getElementById('barn-date').value = date;
+  document.getElementById('barn-modal').classList.add('open');
+}
+
+function closeBarnModal() {
+  document.getElementById('barn-modal').classList.remove('open');
+}
+
+async function saveBarn() {
+  const id        = document.getElementById('barn-edit-id').value;
+  const no        = document.getElementById('barn-no').value.trim();
+  const emergency = parseInt(document.getElementById('barn-emergency').value) || 0;
+  const date      = document.getElementById('barn-date').value;
+  if (!no) { showToast('동 번호를 입력하세요', 'danger'); return; }
+  const body = { barn_no: no, emergency_count: emergency, date: date || null };
+  try {
+    const res = await fetch(
+      id ? API + `/api/edr/barn/${id}` : API + '/api/edr/barn',
+      { method: id ? 'PUT' : 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }
+    );
+    if (!res.ok) throw new Error(await res.text());
+    closeBarnModal();
+    showToast(id ? '동 정보가 수정되었습니다' : '동이 추가되었습니다');
+    loadBarn();
+  } catch(e) {
+    showToast('저장 실패: ' + e.message, 'danger');
+  }
+}
+
+// ────────────────────────────────────────
+//  삭제 확인 모달
+// ────────────────────────────────────────
+let _deleteTarget = null;
+
+function confirmDelete(type, id, label) {
+  _deleteTarget = { type, id, label };
+  const typeLabel = type === 'cattle' ? '소' : type === 'course' ? '코스' : '축사 동';
+  document.getElementById('confirm-body').innerHTML =
+    `<strong>${label}</strong> (${typeLabel})을(를) 삭제하시겠습니까?<br>이 작업은 되돌릴 수 없습니다.`;
+  document.getElementById('confirm-modal').classList.add('open');
+}
+
+function closeConfirm() {
+  _deleteTarget = null;
+  document.getElementById('confirm-modal').classList.remove('open');
+}
+
+document.getElementById('confirm-ok-btn').addEventListener('click', async () => {
+  if (!_deleteTarget) return;
+  const { type, id, label } = _deleteTarget;
+  const urlMap = { cattle: `/api/edr/cattle/${id}`, course: `/api/edr/course/${id}`, barn: `/api/edr/barn/${id}` };
+  try {
+    const res = await fetch(API + urlMap[type], { method: 'DELETE' });
+    if (!res.ok) throw new Error(await res.text());
+    closeConfirm();
+    showToast(`${label} 삭제 완료`);
+    if (type === 'cattle') loadCattle();
+    else if (type === 'course') loadCourse();
+    else loadBarn();
+  } catch(e) {
+    showToast('삭제 실패: ' + e.message, 'danger');
+    closeConfirm();
+  }
+});
+
+// ── 오버레이 클릭으로 닫기 ──
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => {
+    if (e.target === el) {
+      el.classList.remove('open');
+      _deleteTarget = null;
+    }
+  });
+});
+
+// ── ESC로 닫기 ──
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.open').forEach(el => {
+      el.classList.remove('open');
+      _deleteTarget = null;
+    });
+  }
+});
+
+// ── XSS 방지 이스케이프 ──
+function esc(s) {
+  return String(s).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+// ── 초기 로드 ──
+loadCattle();
+loadCourse();
+loadBarn();
+</script>
+</body>
+</html>

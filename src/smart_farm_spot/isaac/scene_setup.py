@@ -7,7 +7,7 @@ scene_setup.py
 시나리오대로 "배치"하는 코드.
 
 스마트 축사 자율순찰 시나리오에 맞춰:
-  1. 축사 환경(environment_0609.usd) 로드
+  1. 축사 환경(environment_final.usd) 로드
   2. Spot 로봇을 순찰 시작 위치에 배치 (위치 + 방향)
 
 ⚠️ 소(cow) 스폰/생성은 여기서 하지 않습니다. (팀에서 작성 중인 "생성 코드")
@@ -36,7 +36,7 @@ import os
 # 워크스페이스 내장 에셋 (포터블: 패키지 상대경로)
 _ASSETS    = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
-ENV_USD    = os.path.join(_ASSETS, "scene", "environment_0609.usd")
+ENV_USD    = os.path.join(_ASSETS, "scene", "environment_final.usd")
 ROBOT_USD  = os.path.join(_ASSETS, "robot", "spot_with_arm.usd")
 ROBOT_PRIM = "/World/Spot"
 
