@@ -45,6 +45,9 @@ CORRIDOR_FRICTION = float(os.environ.get("SF_CORRIDOR_FRICTION", "0.7"))
 # 소: 로봇 시작(원점) 기준 상대 월드좌표 + 바라보는 yaw(도)
 COW_DX, COW_DY = (float(v) for v in os.environ.get("SF_COW_XY", "3.0,0.0").split(","))
 COW_YAW = math.radians(float(os.environ.get("SF_COW_YAW", "0")))   # +x 향함
+# 소 마릿수: 1=데모(기본), 5=시나리오(간격 배치). SF_COW_SPACING=옆 간격(m).
+COW_COUNT = int(os.environ.get("SF_COW_COUNT", "1"))
+COW_SPACING = float(os.environ.get("SF_COW_SPACING", "2.5"))
 REAR_DIST = float(os.environ.get("SF_REAR_DIST", "2.4"))           # 후방 정차 거리(m) — 소 몸통(~3.2m) 밖
 DETECT_RANGE = float(os.environ.get("SF_DETECT_RANGE", "2.2"))     # 소 발견 반경(m)
 SPEED = float(os.environ.get("SF_SPEED", "0.9"))                   # 최대 전진(m/s)
@@ -330,12 +333,12 @@ def bind_cow_texture(stage, cow_root, tex_path):
     return n
 
 
-def spawn_cow(stage, x, y, z, yaw, tex_path):
-    add_reference_to_stage(usd_path=COW_USD, prim_path="/World/Cow")
+def spawn_cow(stage, x, y, z, yaw, tex_path, prim="/World/Cow"):
+    add_reference_to_stage(usd_path=COW_USD, prim_path=prim)
     # scenario1 검증 비균등 스케일(=실제 소 크기). SF_COW_SCALE 는 추가 배율.
     _sv = [2.37873, 1.69315, 1.69315]
     _m = float(os.environ.get("SF_COW_SCALE", "1.0"))
-    xf = UsdGeom.Xformable(stage.GetPrimAtPath("/World/Cow"))
+    xf = UsdGeom.Xformable(stage.GetPrimAtPath(prim))
     xf.ClearXformOpOrder()
     xf.AddTranslateOp().Set(Gf.Vec3d(x, y, z))
     xf.AddRotateXYZOp().Set(Gf.Vec3f(0.0, 0.0, math.degrees(yaw)))
@@ -346,7 +349,7 @@ def spawn_cow(stage, x, y, z, yaw, tex_path):
     try:
         bb = UsdGeom.BBoxCache(Usd.TimeCode.Default(),
                                [UsdGeom.Tokens.default_]).ComputeWorldBound(
-            stage.GetPrimAtPath("/World/Cow")).ComputeAlignedRange()
+            stage.GetPrimAtPath(prim)).ComputeAlignedRange()
         sz = bb.GetMax() - bb.GetMin()
         print(f"  📏 소 크기(L×W×H): {sz[0]:.2f}×{sz[1]:.2f}×{sz[2]:.2f} m (scale={scale})")
     except Exception:
@@ -354,10 +357,10 @@ def spawn_cow(stage, x, y, z, yaw, tex_path):
     nb = 0
     if os.path.exists(tex_path):
         try:
-            nb = bind_cow_texture(stage, "/World/Cow", tex_path)
+            nb = bind_cow_texture(stage, prim, tex_path)
         except Exception as e:
             print(f"  ⚠️ 소 텍스처: {e}")
-    print(f"  ✅ 소 스폰 @ world({x:.2f},{y:.2f}) yaw={math.degrees(yaw):.0f}° (텍스처 메시 {nb})")
+    print(f"  ✅ 소 스폰 {prim} @ world({x:.2f},{y:.2f}) yaw={math.degrees(yaw):.0f}° (텍스처 메시 {nb})")
 
 
 # ─────────────────────────── RealSense 마운트 ────────────────────────
@@ -761,6 +764,15 @@ def main():
         cow_fwd = (1.0, 0.0); half_fwd = _lx / 2.0
     else:
         cow_fwd = (0.0, 1.0); half_fwd = _ly / 2.0
+    # ── 시나리오용 추가 소(간격 배치) — cow0 옆으로 COW_SPACING 씩. 데모=1마리면 스킵 ──
+    if COW_COUNT > 1:
+        _perp = (-cow_fwd[1], cow_fwd[0])    # 몸 길이축 수직 = 옆줄 방향
+        for _i in range(1, COW_COUNT):
+            _cx = COW_X + _perp[0] * _i * COW_SPACING
+            _cy = COW_Y + _perp[1] * _i * COW_SPACING
+            spawn_cow(stage, _cx, _cy, COW_Z, cow_yaw, COW_TEX, prim=f"/World/Cow_{_i:02d}")
+        print(f"  🐄 시나리오 소 {COW_COUNT}마리 배치(간격 {COW_SPACING}m) — cow0=검사기준")
+
     TAIL_X = COW_X + TAIL_SIGN * cow_fwd[0] * half_fwd          # 꼬리 끝
     TAIL_Y = COW_Y + TAIL_SIGN * cow_fwd[1] * half_fwd
     REAR_X = TAIL_X + TAIL_SIGN * cow_fwd[0] * BEHIND           # 꼬리 1.5m 뒤
