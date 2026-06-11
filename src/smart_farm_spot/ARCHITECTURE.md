@@ -60,7 +60,7 @@ Isaac Sim 5.1 + ROS2 Humble 에서 **SLAM + Nav2 + RL 보행** 구조로 구현.
 | `isaac/camera_record.py` | 헤드리스 손끝 RealSense (RGB+Depth) 카메라 녹화 및 ROS bag 발행 |
 | `patrol.py` | **순찰** — 통로 끝 웨이포인트를 SLAM+Nav2+RL 로 순서대로 순회(반복) |
 | `scenario_nav.py` | 소 후방(꼬리 1.5m 뒤) 1지점으로 NavigateToPose |
-| `yolo_view.py` | YOLO Pose 소 검출 + 거리 → `/yolo/annotated` (rqt_image_view) |
+| `yolo_view.py` | YOLO Pose 소 검출 + 거리 → `/yolo/annotated`, 파행 비대칭 지표 → `/cow/lameness` |
 | `scripts/run_scenario.sh` | 전체 오케스트레이션(좀비정리→브릿지→SLAM→Nav2→YOLO→목표/순찰). `SF_PATROL=1`=순찰 |
 | `config/nav2_params_slam.yaml` | Nav2 파라미터(후진금지, inflation 0.28, DWB, NavfnPlanner) |
 | `config/waypoints_h.yaml` | H자 주행코스 웨이포인트 목록 |
@@ -126,8 +126,11 @@ ROS_DOMAIN_ID=153 rqt_image_view /yolo/annotated
   → **팔 관측 포함 SpotArm 정책 재학습 후** 적용(코드는 주석으로 보존).
 - **측정기반 목표**: 현재 소 후방 목표는 시뮬 정답좌표 사용. → YOLO+뎁스+TF 로 **검출값 기반** 목표 산출로 교체 필요
   (전제: `odom→spot_cam` 동적 TF 발행 = 손링크 FK).
-- **파행(lameness) 검사**: 모델은 클래스 'cow' 1개 + 14키포인트만. 파행 라벨 없음.
-  → 키포인트 기반 비대칭 지표 계산 + `/cow/lameness` 토픽 발행(별도 추가 필요).
+- **파행(lameness) 검사**: 모델은 클래스 'cow' 1개 + 14키포인트만 → 파행 라벨 없음.
+  → ✅ **1차 휴리스틱 구현**: `yolo_view.py` 가 키포인트를 bbox 세로 중심선 기준으로 좌우
+     미러링해 비대칭 지표(0~1)를 산출, 소별로 `/cow/lameness`(Float32MultiArray) 발행 +
+     오버레이 표시(`limp 0.xx`, 임계 초과 시 `LAME?`). 키포인트 의미순서에 비의존.
+  → 향후: 파행 라벨 데이터로 모델 재학습 + 다프레임(보행주기) 시계열 지표로 정밀화.
 - **검출 신뢰도 향상**: 320×320 저해상도 + Sim-to-Real 도메인 갭 + 뒤태/스케일.
   → 도메인 랜덤화(소 scale·pose·조명·카메라) + 시뮬 자동 bbox 라벨 → best.pt 파인튜닝.
 ```
