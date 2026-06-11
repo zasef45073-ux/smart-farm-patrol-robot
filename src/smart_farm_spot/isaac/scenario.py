@@ -623,6 +623,21 @@ def main():
     # ── 팔 stow(접기) 준비 — 즉시 접으면 토크로 뒤집힘. **맵 구성 후 천천히** 접는다.
     #  평면정책이 무팔(spot_flat)이라 팔 뻗으면 CoM 쏠림 → stow 로 중앙화(안정).
     _jn = list(robot.joint_names)
+    # ── 팔 무게 가볍게(massless 트릭) — 무팔 강건 보행정책 그대로 안정 보행 ──
+    #  SF_ARM_LIGHT_KG>0 시 팔 링크 질량·관성을 그 값으로 낮춤(CoM 외란 제거).
+    _arm_light = float(os.environ.get("SF_ARM_LIGHT_KG", "0"))
+    if _arm_light > 0:
+        import sys as _syslm
+        _root_lm = os.path.dirname(_ASSETS)
+        if _root_lm not in _syslm.path:
+            _syslm.path.insert(0, _root_lm)
+        try:
+            from arm_mass import apply_light_arm
+            _nlm = apply_light_arm(robot, _arm_light)
+            print(f"  ✅ 팔 경량화 {_nlm}개 링크 → {_arm_light}kg "
+                  f"(CoM 외란↓ — 무팔 강건정책 안정 보행)")
+        except Exception as _elm:
+            print(f"  ⚠️ 팔 경량화 셋업 실패(무시): {_elm}")
     #  등쪽(背) 수납: 어깨(sh1)를 한계 가까이(-3.05) 위·뒤로 돌리고 팔꿈치(el0)를
     #  한계 가까이(3.05) 완전히 접어 → 팔(전완)이 등 위에 눕는다. CoM 최저·중앙.
     _stow = {"arm0_sh0": float(os.environ.get("SF_STOW_SH0", "0.0")),
