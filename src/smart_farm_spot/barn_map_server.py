@@ -44,9 +44,8 @@ class BarnMapServer(Node):
         with open(MAP_JSON) as f:
             meta = json.load(f)
         self.res = float(meta["resolution"])
-        self.W = int(meta["width"]); self.H = int(meta["height"])
         self.ox, self.oy = meta["origin"]
-
+        self.H, self.W = int(grid.shape[0]), int(grid.shape[1])
         # latched(map 은 한 번만 받아도 유지) QoS
         qos = QoSProfile(depth=1)
         qos.durability = QoSDurabilityPolicy.TRANSIENT_LOCAL

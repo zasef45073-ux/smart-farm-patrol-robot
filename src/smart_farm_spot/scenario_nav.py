@@ -64,6 +64,9 @@ class PatrolSeek(Node):
                 self.wps = json.load(f)["waypoints"]
         except Exception:
             self.wps = []
+        # 시작점(map 원점) 근처 웨이포인트 제거 — 경로길이0이면 DWB가 제자리 정체(메모리 함정).
+        _skip = float(os.environ.get("SF_WP_SKIP_R", "1.5"))
+        self.wps = [w for w in self.wps if math.hypot(w[0], w[1]) > _skip]
 
         self.client = ActionClient(self, NavigateToPose, "navigate_to_pose")
         if not self.client.wait_for_server(timeout_sec=40.0):
