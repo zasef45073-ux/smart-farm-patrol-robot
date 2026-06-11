@@ -1,0 +1,33 @@
+# ===== ROS 2 / colcon 빌드 산출물 =====
+/build/
+/install/
+/log/
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# ===== 대용량 텍스처 원본 팩 (런타임 비필수, 재다운로드 가능) =====
+# 시뮬 런타임은 ~/Documents/environment_0609.usd 를 로드하며,
+# props/models 는 자체 베이크 텍스처를 포함하므로 아래 원본 팩은 제외함.
+# 제외 내역과 출처: src/smart_farm_spot/assets/scene/textures/EXCLUDED_FROM_GIT.md
+src/smart_farm_spot/assets/scene/textures/*
+!src/smart_farm_spot/assets/scene/textures/EXCLUDED_FROM_GIT.md
+
+# ===== 기타 무거운 소스 포맷 (어디에 있든 제외) =====
+*.blend
+*.blend[0-9]
+*.exr
+*.fbx
+*.tres
+
+# ===== OS / 에디터 =====
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/

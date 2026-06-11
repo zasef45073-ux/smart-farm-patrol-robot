@@ -1,0 +1,41 @@
+# ─────────────────────────────────────────────────────────────────────────
+# scenario_modes.yaml — 환경별(서버/로컬) 실행 설정
+#
+# 두 가지 모드로 동일 시나리오를 돌릴 수 있다.
+# 실제 전환은 scripts/run_local.sh / run_server.sh 가 아래 값에 맞춰 환경변수
+# (SF_ASSET_BASE 등)를 세팅해 nav_bridge.py 를 띄운다.
+# ─────────────────────────────────────────────────────────────────────────
+
+# 로컬 단독 모드 — 서버 없이 노트북 한 대로 전체 실행
+local:
+  description: "서버 불필요 자립 실행. 로컬 에셋 + 로컬 Nav2."
+  ros_domain_id: 153
+  asset_base: local                 # SF_ASSET_BASE=local → assets/scene
+  launch_nav2: true                 # nav2_flat.launch.py 직접 실행
+  run: "scripts/run_local.sh"
+  notes:
+    - "assets/scene 에 environment_light.usd + props/textures/models 자립 포함"
+    - "RealSense(손 엔드단) + RTX 라이다 + YOLO 텍스처 소 검출 모두 로컬"
+    - "팀 서버 Nav2 가 떠 있으면 끄거나 ROS_DOMAIN_ID 를 다르게(예 154) 줄 것"
+
+# 서버 모드 — 팀 Nucleus + 팀 서버 Nav2 공유
+server:
+  description: "팀 Nucleus 에셋 + 서버 Nav2 공유."
+  ros_domain_id: 153
+  asset_base: "omniverse://192.168.10.44/Projects/team1/environment"
+  launch_nav2: false                # 서버 Nav2 사용(여기선 안 띄움)
+  run: "scripts/run_server.sh"
+  notes:
+    - "Nucleus 192.168.10.44 (port 3009/3030) 접속 필요"
+    - "에셋: <base>/environment_light.usd, <base>/models/cow_eat.usd, <base>/textures/T_Cow_B.png"
+    - "Nav2 는 팀 서버에서 이미 실행 중이라고 가정"
+
+# 공통 — 두 모드 다 nav_bridge.py 가 읽는 환경변수
+common_env:
+  SF_DOMAIN: "ROS_DOMAIN_ID (기본 153)"
+  SF_ASSET_BASE: "local | omniverse://... (에셋 소스)"
+  SF_STAND_Z: "기립 베이스 높이 (기본 0.90)"
+  SF_RS_WORLD: "손등 카메라 오프셋 fwd,side,up (기본 0,0,0.06)"
+  SF_RS_POS: "RealSense 마운트 로컬 오프셋 (기본 0.06,0,0)"
+  SF_COW_YAW: "소 회전 도(촬영용, 기본 0)"
+  SF_BASE_FLIP: "1 이면 구형 뒤집힌 에셋용 X180 보정"

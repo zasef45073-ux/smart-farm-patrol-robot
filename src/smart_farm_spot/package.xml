@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>smart_farm_spot</name>
+  <version>2.0.0</version>
+  <description>
+    꼬마 로봇 두리 - 스마트 축사 자율순찰 Spot 통합 패키지.
+    Isaac Sim 인지(카메라/열화상/LiDAR/IMU/객체인식) + Nav2 자율주행(웨이포인트 순찰/
+    충돌 회피)을 하나로 통합. Isaac Sim 브릿지(센서+odom/cmd_vel)와 ROS 2 노드,
+    Nav2 런치/파라미터를 모두 포함.
+  </description>
+
+  <maintainer email="team@example.com">꼬마 로봇 두리</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <!-- 노드 실행 의존성 -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>nav2_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>vision_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+
+  <!-- 열화상 후처리 노드는 비전 준비중 → 통합 제외.
+       완료 시 cv_bridge / python3-opencv / python3-numpy 의존성 추가. -->
+
+  <!-- Nav2 스택 -->
+  <exec_depend>navigation2</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>nav2_map_server</exec_depend>
+  <exec_depend>nav2_amcl</exec_depend>
+  <exec_depend>nav2_lifecycle_manager</exec_depend>
+
+  <!-- 런치/파라미터 -->
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <!-- 선택: 매핑 -->
+  <exec_depend>slam_toolbox</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
