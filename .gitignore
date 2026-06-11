@@ -36,3 +36,6 @@ src/smart_farm_spot/assets/scene/textures/*
 dashboard/.env
 dashboard/cattle_health.db
 dashboard/**/__pycache__/
+
+# keepout 마스크 — make_keepout_mask.py 로 재생성 가능(맵 변경시 갱신)
+src/smart_farm_spot/maps/keepout_mask.*
