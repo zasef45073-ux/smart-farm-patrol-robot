@@ -73,7 +73,9 @@ class CowTailSeek(Node):
         self.client = ActionClient(self, NavigateToPose, "navigate_to_pose")
         self._nav_ready = False
         # 부트스트랩: 소가 안 보이면 제자리 회전하며 탐색(소 시야 진입 → 검출)
-        self.cmd_pub = self.create_publisher(Twist, "/cmd_vel", 10)
+        #  twist_mux 경유 — /cmd_vel 직접 발행 금지(Nav2 출력과 충돌). tail_search input(prio 30)로.
+        self.cmd_pub = self.create_publisher(
+            Twist, os.environ.get("SF_TAIL_CMD_TOPIC", "tail_search/cmd_vel"), 10)
         self._last_detect = 0.0
         self._goal_sent = False
         self._search_wz = float(os.environ.get("SF_SEARCH_WZ", "0.5"))

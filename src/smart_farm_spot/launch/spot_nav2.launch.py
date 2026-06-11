@@ -34,6 +34,7 @@ def generate_launch_description():
     map_yaml = LaunchConfiguration("map")
     use_amcl = LaunchConfiguration("use_amcl")
     autostart = LaunchConfiguration("autostart")
+    cmd_vel_topic = LaunchConfiguration("cmd_vel_topic")
 
     declare_args = [
         DeclareLaunchArgument("use_sim_time", default_value="true",
@@ -46,6 +47,9 @@ def generate_launch_description():
                               description="AMCL 위치 추정 사용 (false면 map=odom static 필요)"),
         DeclareLaunchArgument("autostart", default_value="true",
                               description="lifecycle 자동 시작"),
+        DeclareLaunchArgument("cmd_vel_topic", default_value="cmd_vel",
+                              description="velocity_smoother 최종 출력 토픽 "
+                                          "(twist_mux 사용 시 nav2/cmd_vel 로 지정)"),
     ]
 
     # AMCL 사용 여부에 따른 lifecycle 노드 목록
@@ -115,7 +119,7 @@ def generate_launch_description():
             name="velocity_smoother", output="screen",
             parameters=[params_file],
             remappings=[("cmd_vel", "cmd_vel_nav"),
-                        ("cmd_vel_smoothed", "cmd_vel")],
+                        ("cmd_vel_smoothed", cmd_vel_topic)],
         ),
 
         # 생명주기 관리 (AMCL 포함 버전)

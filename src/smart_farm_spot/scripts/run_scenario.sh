@@ -76,6 +76,22 @@ for n in controller_server planner_server behavior_server bt_navigator waypoint_
 done
 sleep 3
 
+# 4b) (선택) Keepout 필터 서버 — 투명벽 회피 (SF_KEEPOUT=1, 마스크 선생성 필요)
+if [ "${SF_KEEPOUT:-0}" = "1" ]; then
+  echo "[4b] Keepout 필터 서버 (투명벽 회피)..."
+  rm -f /tmp/keepout.log
+  setsid ros2 launch smart_farm_spot keepout.launch.py > /tmp/keepout.log 2>&1 < /dev/null &
+  sleep 3
+fi
+
+# 4c) (선택) 웹 대시보드 브리지 — /patrol/command ↔ /robot/status (SF_DASHBOARD=1)
+if [ "${SF_DASHBOARD:-0}" = "1" ]; then
+  echo "[4c] 대시보드 브리지 (웹 ↔ 로봇)..."
+  rm -f /tmp/dashboard_bridge.log
+  ROS_DOMAIN_ID=$DOMAIN setsid python3 "$PKG/dashboard_bridge.py" > /tmp/dashboard_bridge.log 2>&1 < /dev/null &
+  echo "    bridge pid $! → /tmp/dashboard_bridge.log"
+fi
+
 # 5) YOLO + 소 후방 목표전송(NavigateToPose)
 echo "[5/5] YOLO + 소 후방 목표전송..."
 setsid python3 "$PKG/yolo_view.py" > /tmp/yolo.log 2>&1 < /dev/null &
