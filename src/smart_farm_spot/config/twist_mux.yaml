@@ -1,0 +1,32 @@
+# twist_mux 우선순위 중재 — 다중 /cmd_vel 발행 충돌 제거 (안전 직결)
+# ─────────────────────────────────────────────────────────────────────
+# 모든 속도 명령원(Nav2 / 꼬리탐색 / 시각서보 / 텔레옵)은 아래 input 토픽으로
+# 발행하고, twist_mux 가 우선순위로 하나만 골라 cmd_vel_out 으로 내보낸다.
+#   launch 에서 remap:  cmd_vel_out -> /cmd_vel   (브릿지는 /cmd_vel 구독)
+#
+# 우선순위(클수록 우선): teleop > visual_servo > tail_search > navigation
+# e_stop(lock, prio 100) 이 걸리면 그 이하 전부 차단 → 즉시 정지.
+twist_mux:
+  ros__parameters:
+    topics:
+      navigation:                 # Nav2 controller_server 출력 (remap: cmd_vel -> nav2/cmd_vel)
+        topic:    nav2/cmd_vel
+        timeout:  0.5
+        priority: 10
+      tail_search:                # cow_tail_seek 탐색 회전
+        topic:    tail_search/cmd_vel
+        timeout:  0.5
+        priority: 30
+      visual_servo:               # cow_visual_servo 시각 서보잉
+        topic:    visual_servo/cmd_vel
+        timeout:  0.5
+        priority: 50
+      teleop:                     # 수동 개입(최상위 주행 명령)
+        topic:    teleop/cmd_vel
+        timeout:  0.5
+        priority: 90
+    locks:
+      e_stop:                     # 비상정지 — 걸리면 이하 전부 차단(만료 없음)
+        topic:    e_stop
+        timeout:  0.0
+        priority: 100
