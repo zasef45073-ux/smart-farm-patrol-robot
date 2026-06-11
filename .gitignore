@@ -31,3 +31,8 @@ src/smart_farm_spot/assets/scene/textures/*
 *~
 .idea/
 .vscode/
+
+# ===== 웹 대시보드 런타임 =====
+dashboard/.env
+dashboard/cattle_health.db
+dashboard/**/__pycache__/

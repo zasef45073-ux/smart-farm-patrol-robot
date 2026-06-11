@@ -1,0 +1,46 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+    networks:
+      - cow-net
+
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - ROS_DOMAIN_ID=153
+    volumes:
+      - .:/app
+    depends_on:
+      - mosquitto
+    networks:
+      - cow-net
+
+  camera-streamer:
+    build: .
+    network_mode: "host"
+    environment:
+      - ROS_DOMAIN_ID=153
+    command: /bin/bash -c "source /opt/ros/humble/setup.bash && python3 camera_stream.py"
+    depends_on:
+      - web
+
+  mqtt-worker:
+    build: .
+    command: python3 mqtt_client.py
+    depends_on:
+      - mosquitto
+      - web
+    networks:
+      - cow-net
+
+networks:
+  cow-net:
+    driver: bridge
