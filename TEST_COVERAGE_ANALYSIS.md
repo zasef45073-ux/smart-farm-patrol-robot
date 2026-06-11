@@ -51,6 +51,16 @@ The cleanest test target in the repo: `apply_fake_thermal`, `get_hotspot_bbox`, 
 - The shipped config files (`config/waypoints*.yaml`, `config/scenario_modes.yaml`, `maps/*.yaml`) deserve a **schema/smoke test** that loads each one and asserts required keys/types — catches a broken edit before it reaches the robot.
 - `waypoint_patrol`'s fallback-to-`DEFAULT_WAYPOINTS`-on-load-failure path.
 
+### 3.5 Map dimension / resolution regression test (occupancy grid)
+A real defect already surfaced here: an occupancy-grid **size mismatch (e.g. 128×128 vs 32×32)** between the rasterizer and the consumer. This class of bug is silent (Nav2 just gets a wrong/garbled map) and exactly what a cheap test pins down. The data flow is:
+`scenario.py` rasterizes `grid = np.full((H, W), -1)` → writes `/tmp/barn_map.json` (`{resolution, width, height, origin}`) + `/tmp/barn_map.npy` → `barn_map_server.py` loads both and publishes `nav_msgs/OccupancyGrid`.
+
+> **Recommendation:** a focused consistency test (NumPy only, no ROS):
+> - **Grid ↔ metadata agree**: `grid.shape == (meta["height"], meta["width"])`, and the flattened `OccupancyGrid.data` length equals `width * height` (the `barn_map_server` `flatten(order="C")` step).
+> - **Resolution consistency**: the map `resolution` matches the costmap `resolution` (0.05) the Nav2 params assume — a mismatched resolution silently scales the whole map.
+> - **Value domain**: every cell ∈ {−1, 0, 100} after the `int(v)` cast; origin is a 2-element numeric pair.
+> - **Round-trip**: a synthetic `(H, W)` grid → json/npy → server message preserves dimensions (guards the 128↔32 class of regression directly).
+
 ## 4. Second tier (needs ROS, but mockable)
 
 The Nav2 client nodes (`patrol.py`, `scenario_nav.py`, `h_drive.py`, `waypoint_patrol.py`) are state machines worth testing with `rclpy` available and the action client mocked:
@@ -77,7 +87,7 @@ These can largely be exercised by instantiating the node logic against a fake ac
 
 1. Extract + test `geometry.py` (`make_pose`, quaternion/yaw helpers) — removes duplication, fastest win.
 2. Test `thermal_processor.py` pure functions — zero refactor needed.
-3. Test `load_waypoints` + a config-files schema smoke test.
+3. Test `load_waypoints` + a config-files schema smoke test, **plus the occupancy-grid dimension/resolution consistency test (§3.5)** — guards the 128×128↔32×32 map-size class of regression.
 4. Extract + test the cow-tail back-projection and "behind the tail" goal math.
 5. Add the ament lint `test/` files and a minimal GitHub Actions `pytest` job.
 6. Add mocked-action-client tests for the patrol/seek state machines.
