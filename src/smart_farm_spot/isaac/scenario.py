@@ -51,6 +51,9 @@ SPEED = float(os.environ.get("SF_SPEED", "0.9"))                   # 최대 전�
 GOAL_R = float(os.environ.get("SF_GOAL_R", "0.45"))               # 도착 판정(m)
 FALL_Z = float(os.environ.get("SF_FALL_Z", "0.30"))               # base z 이하면 넘어짐
 STAND_Z = float(os.environ.get("SF_STAND_Z", "0.62"))             # 강제 기립 높이
+# 후방 도착 → 앉아서 검사 (실험적). 1=활성. 외부(scenario_nav)가 도착 시 트리거파일 생성.
+INSPECT_ENABLE = int(os.environ.get("SF_INSPECT_ENABLE", "0"))
+INSPECT_TRIGGER = os.environ.get("SF_INSPECT_TRIGGER", "/tmp/scenario_inspect")
 REC_FORCE = int(os.environ.get("SF_REC_FORCE", "90"))            # 자력복구 실패 시 강제기립 스텝
 STUCK_WIN = int(os.environ.get("SF_STUCK_WIN", "100"))           # 끼임 판정 윈도(스텝)
 STUCK_DIST = float(os.environ.get("SF_STUCK_DIST", "0.25"))     # 윈도 내 이동 이하면 끼임
@@ -936,6 +939,34 @@ def main():
     vis_goal_xy = None   # 마지막으로 파일에 쓴 후방 목표(world) — 갱신 임계 판정용
     pid_vx_i = pid_wz_i = 0.0      # cmd_vel 추종 PID 적분항
     pid_vx_pe = pid_wz_pe = 0.0    # cmd_vel 추종 PID 직전 오차(D항)
+
+    # ── INSPECT(후방 도착→앉아서 검사) 셋업 — 실험적, SF_INSPECT_ENABLE=1 로만 ──
+    inspector = None
+    leg_ids = []
+    sit_leg_vec = stand_leg_vec = insp_arm_vec = None
+    if INSPECT_ENABLE and arm_ids:
+        try:
+            import sys as _sys
+            _root = os.path.dirname(_ASSETS)
+            if _root not in _sys.path:
+                _sys.path.insert(0, _root)
+            from inspect_sequence import InspectSequence
+            from arm_poses import leg_indices, sit_leg_targets, pose_vector, inspect_udder_pose
+            inspector = InspectSequence()
+            leg_ids = leg_indices(_jn)
+            _def = robot.data.default_joint_pos[0].detach().cpu().tolist()
+            _sit = sit_leg_targets(_def, _jn)
+            sit_leg_vec = torch.tensor([_sit[i] for i in leg_ids], device=device)
+            stand_leg_vec = torch.tensor([_def[i] for i in leg_ids], device=device)
+            insp_arm_vec = torch.tensor(
+                pose_vector(inspect_udder_pose(), [_jn[i] for i in arm_ids]),
+                device=device, dtype=arm_open_vec.dtype)
+            print(f"  ✅ INSPECT(앉아서 검사) 활성 — 다리 {len(leg_ids)} 팔 {len(arm_ids)} "
+                  f"트리거={INSPECT_TRIGGER}")
+        except Exception as _e:
+            print(f"  ⚠️ INSPECT 셋업 실패(무시): {_e}")
+            inspector = None
+
     while simulation_app.is_running():
         pos = robot.data.root_pos_w[0]
         rx, ry, rz = float(pos[0]), float(pos[1]), float(pos[2])
@@ -1000,11 +1031,40 @@ def main():
                     pid_vx_pe, pid_wz_pe = _ev, _ew
                     vx = max(-PID_VX_LIM, min(PID_VX_LIM, vx))
                     wz = max(-PID_WZ_LIM, min(PID_WZ_LIM, wz))
+        # ── INSPECT: 후방 도착 → 앉아서 검사 (실험적, 기본 OFF) ──
+        #  주의: 다리 sit target 은 위치제어로 덮어쓰지만, 아래 env.step(정책액션)이
+        #  다리 target 을 다시 쓰므로 **정책이 sit 을 거스를 수 있다**. 완전한 앉기는
+        #  정지구간 정책 leg-action 억제(또는 sit-capable 정책)가 필요 → in-sim 검증 대상.
+        #  cmd 정지 + 팔 검사자세 + 촬영 트리거는 그대로 동작한다.
+        _inspecting = False
+        if inspector is not None:
+            if not inspector.is_active() and os.path.exists(INSPECT_TRIGGER):
+                inspector.start(step)
+                try:
+                    os.remove(INSPECT_TRIGGER)
+                except OSError:
+                    pass
+                print(f"  ★ INSPECT 시작(step={step}) — 정지→앉기→검사")
+            _ins = inspector.update(step)
+            _inspecting = _ins.active
+            if _ins.active:
+                vx, wz = 0.0, 0.0                       # 검사 중 주행 금지
+                if leg_ids:
+                    _legt = stand_leg_vec * (1.0 - _ins.leg_t) + sit_leg_vec * _ins.leg_t
+                    robot.set_joint_position_target(_legt.unsqueeze(0), joint_ids=leg_ids)
+                _armt = arm_open_vec * (1.0 - _ins.arm_t) + insp_arm_vec * _ins.arm_t
+                robot.set_joint_position_target(_armt.unsqueeze(0), joint_ids=arm_ids)
+                if _ins.capture:
+                    print("  📸 [검사] 유방 RGB-D 촬영 시점 — (저장/hotspot/클라우드 연계 지점)")
+            if _ins.done:
+                inspector.reset()
+                print("  ✅ 검사 완료 — 일어섬, 순찰 재개")
+
         cmd_term.vel_command_b[:, 0] = vx
         cmd_term.vel_command_b[:, 1] = 0.0
         cmd_term.vel_command_b[:, 2] = wz
         # 팔: 펼침(extended) 자세로 부드럽게 전환 후 유지(손카메라가 소를 향함, 낮아 안정).
-        if arm_ids:
+        if arm_ids and not _inspecting:
             _od = 100  # ~2s lerp(급변 방지)
             if step < _od:
                 _t = step / _od
