@@ -37,6 +37,8 @@ from ultralytics import YOLO
 import tf2_ros
 from tf2_geometry_msgs import do_transform_point
 
+from cow_tracker import CowTrackManager
+
 _PKG = os.path.dirname(os.path.abspath(__file__))
 WEIGHTS = os.path.join(_PKG, "assets", "yolo", "best.pt")
 TAIL_KPT = 5            # 0 nose..5 tail_base..
@@ -57,6 +59,9 @@ class CowTailSeek(Node):
         self._K = None
         self._tails = []          # 최근 꼬리 월드 추정 누적
         self._goal_xy = None      # 마지막 전송 목표
+        # YOLO 트랙 상태관리 — 안정 대상 선택 + 검사완료(전 소 순회)
+        self.tracker = CowTrackManager(min_hits=3, max_age=1.0)
+        self._target_id = None    # 현재 추적 중인 소 track_id
 
         q = qos_profile_sensor_data
         self.create_subscription(Image, "/spot_cam/rgb", self.cb_rgb, q)
@@ -103,12 +108,26 @@ class CowTailSeek(Node):
             frame = self.bridge.imgmsg_to_cv2(m, "bgr8")
         except Exception:
             return
-        r = self.model(frame, conf=CONF, verbose=False)[0]
-        if r.keypoints is None or r.boxes is None or len(r.boxes) == 0:
+        # 트래킹 검출(track_id 부여) — 플리커/오검출 흡수 + 검사완료 관리
+        r = self.model.track(frame, persist=True, conf=CONF, verbose=False)[0]
+        if (r.keypoints is None or r.boxes is None or len(r.boxes) == 0
+                or r.boxes.id is None):
             return
+        ids = r.boxes.id.cpu().numpy().astype(int)
+        confs = r.boxes.conf.cpu().numpy()
+        xywh = r.boxes.xywh.cpu().numpy()
+        dets = [{"id": int(ids[i]), "conf": float(confs[i]),
+                 "cx": float(xywh[i][0]), "cy": float(xywh[i][1])}
+                for i in range(len(ids))]
+        target = self.tracker.update(dets, time.time())
+        if target is None:                     # 확정 대상 없음(미검사 소 없음 포함)
+            return
+        if target != self._target_id:          # 대상 바뀌면 누적 추정 초기화
+            self._target_id = target
+            self._tails = []
+            self._goal_xy = None
+        bi = int(np.where(ids == target)[0][0])
         kps = r.keypoints.data.cpu().numpy()   # (n,14,3)
-        # 가장 신뢰 높은 소
-        bi = int(np.argmax(r.boxes.conf.cpu().numpy()))
         tail = kps[bi, TAIL_KPT]               # [x, y, conf]
         if float(tail[2]) < KPT_CONF:
             return
@@ -181,9 +200,31 @@ class CowTailSeek(Node):
         p.pose.orientation.z, p.pose.orientation.w = math.sin(yaw / 2), math.cos(yaw / 2)
         g = NavigateToPose.Goal(); g.pose = p
         self.get_logger().info(
-            f"★ 비전 꼬리 검출 tail=({tx:.2f},{ty:.2f}) → 후방목표=({gx:.2f},{gy:.2f}) 전송")
-        self.client.send_goal_async(g)
+            f"★ 소(track {self._target_id}) 꼬리=({tx:.2f},{ty:.2f}) → "
+            f"후방목표=({gx:.2f},{gy:.2f}) 전송")
+        self.client.send_goal_async(g).add_done_callback(self._on_goal_resp)
         self._goal_sent = True   # 탐색 회전 중지 → Nav2 가 주행 제어
+
+    def _on_goal_resp(self, fut):
+        gh = fut.result()
+        if not gh.accepted:
+            self._goal_sent = False          # 거부 → 탐색 재개
+            return
+        gh.get_result_async().add_done_callback(self._on_goal_done)
+
+    def _on_goal_done(self, fut):
+        # 후방 도착(SUCCEEDED=4) → 이 소 검사완료 기록 → 다음 미검사 소로
+        if fut.result().status == 4:
+            self.get_logger().info(
+                f"★ 소(track {self._target_id}) 후방 도착 — 검사완료, 다음 소 탐색")
+            self.tracker.mark_inspected(self._target_id)
+            if self.tracker.all_inspected():
+                self.get_logger().info("✅ 모든 소 후방 검사 완주")
+        # 대상 해제 → 탐색 회전 재개(다음 소)
+        self._goal_sent = False
+        self._target_id = None
+        self._tails = []
+        self._goal_xy = None
 
 
 def main():
