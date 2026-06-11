@@ -70,7 +70,14 @@ local_costmap:
       height: 6
       resolution: 0.05
       footprint: "[[0.45, 0.20], [0.45, -0.20], [-0.45, -0.20], [-0.45, 0.20]]"
-      plugins: ["obstacle_layer", "inflation_layer"]
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
+      # 정적 맵(/map) → 실시간 local 제어에서도 존중(벽 근처 통과 방지).
+      #  ※ barn_map_server 사전맵이면 투명 가상벽 포함. 순수 slam_toolbox 맵엔
+      #    라이다가 못 보는 가상벽이 없으므로, 가상벽은 keepout filter 로 별도 추가 필요.
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+        enabled: True
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
@@ -105,7 +112,11 @@ global_costmap:
       track_unknown_space: false
       resolution: 0.05
       footprint: "[[0.45, 0.20], [0.45, -0.20], [-0.45, -0.20], [-0.45, 0.20]]"
-      plugins: ["obstacle_layer", "inflation_layer"]   # 라이다 /scan 실시간 충돌회피
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]   # 정적맵 + 라이다 /scan
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_subscribe_transient_local: True
+        enabled: True
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
