@@ -76,12 +76,20 @@ for n in controller_server planner_server behavior_server bt_navigator waypoint_
 done
 sleep 3
 
-# 4b) (선택) Keepout 필터 서버 — 투명벽 회피 (SF_KEEPOUT=1, 마스크 선생성 필요)
-if [ "${SF_KEEPOUT:-0}" = "1" ]; then
-  echo "[4b] Keepout 필터 서버 (투명벽 회피)..."
+# 4b) Keepout 필터 서버 — nav2_params_slam 의 keepout_filter 가 /costmap_filter_info 를
+#  필수로 요구. 안 띄우면 코스트맵이 마스크를 영원히 기다려 막힘 → controller "Failed to
+#  make progress" → 주행 정체. 따라서 **기본 ON**. (SF_KEEPOUT=0 으로만 끔)
+if [ "${SF_KEEPOUT:-1}" = "1" ]; then
+  echo "[4b] Keepout 필터 서버 (투명벽 회피 + 코스트맵 필수)..."
+  # 마스크 없으면 생성 후 install share 로 복사(keepout.launch.py 가 share 에서 읽음)
+  if [ ! -f "$INST/maps/keepout_mask.yaml" ]; then
+    echo "    keepout 마스크 생성..."
+    ROS_DOMAIN_ID=$DOMAIN python3 "$PKG/tools/make_keepout_mask.py" 2>/dev/null
+    cp -f "$PKG/maps/keepout_mask.pgm" "$PKG/maps/keepout_mask.yaml" "$INST/maps/" 2>/dev/null
+  fi
   rm -f /tmp/keepout.log
   setsid ros2 launch smart_farm_spot keepout.launch.py > /tmp/keepout.log 2>&1 < /dev/null &
-  sleep 3
+  sleep 4
 fi
 
 # 4c) (선택) 웹 대시보드 브리지 — /patrol/command ↔ /robot/status (SF_DASHBOARD=1)
