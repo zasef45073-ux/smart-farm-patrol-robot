@@ -58,6 +58,11 @@ CHASE_BACK = float(os.environ.get("SF_CHASE_BACK", "3.0"))  # 체이스 뒤 거�
 CHASE_UP = float(os.environ.get("SF_CHASE_UP", "1.8"))      # 체이스 높이
 MAP_H = float(os.environ.get("SF_MAP_H", "24.0"))      # 탑다운 높이
 
+# 과노출 완화: 캡처 픽셀 게인(<1=어둡게) — 조명 감광 후에도 밝으면 추가로 낮춤(확실)
+EXPOSURE_GAIN = float(os.environ.get("SF_EXPOSURE_GAIN", "0.6"))
+# 손 카메라 시점 틸트(deg, +면 위로) — 바닥만 보던 것 전방/소 높이로
+HAND_PITCH_DEG = float(os.environ.get("SF_HAND_PITCH_DEG", "25.0"))
+
 _TS = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 OUT_DIR = os.environ.get("SF_OUT_DIR", os.path.join(HOME, "rag", f"{_TS}_4cam"))
 
@@ -273,6 +278,13 @@ def mount_hand_realsense(stage, robot_prim):
     _Mc = np.column_stack([_f, _u, np.cross(_f, _u)])
     _Mt = np.column_stack([[1., 0, 0], [0, 0, 1.], [0, -1., 0]])
     _Rm = _Mt @ _Mc.T
+    # 손카메라 시점 틸트 — 바닥만 보던 것 위로(전방/소 높이). 카메라 X축 기준 피치.
+    if abs(HAND_PITCH_DEG) > 1e-3:
+        _th = math.radians(HAND_PITCH_DEG)
+        _Rp = np.array([[1.0, 0.0, 0.0],
+                        [0.0, math.cos(_th), -math.sin(_th)],
+                        [0.0, math.sin(_th), math.cos(_th)]], float)
+        _Rm = _Rm @ _Rp
     o_op.Set(_mat_to_quat(_Rm))
     c = stage.GetPrimAtPath(color)
     if c and c.IsValid():
@@ -482,6 +494,9 @@ def main():
                 arr = np.asarray(rgb)
                 if arr.ndim == 3 and arr.shape[2] >= 3:
                     bgr = cv2.cvtColor(arr[:, :, :3].astype(np.uint8), cv2.COLOR_RGB2BGR)
+                    if EXPOSURE_GAIN != 1.0:   # 과노출 완화(픽셀 게인)
+                        bgr = np.clip(bgr.astype(np.float32) * EXPOSURE_GAIN,
+                                      0, 255).astype(np.uint8)
                     if bgr.shape[:2] != (RES[1], RES[0]):
                         bgr = cv2.resize(bgr, RES)
                     v["vw"].write(bgr)
