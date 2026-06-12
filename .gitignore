@@ -44,3 +44,6 @@ src/smart_farm_spot/maps/keepout_mask.*
 *.pptx
 *.pdf
 D-3_*.zip
+*.mp4
+*.MOV
+*.mov
