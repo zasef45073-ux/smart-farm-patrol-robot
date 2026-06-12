@@ -94,7 +94,7 @@ local_costmap:
           data_type: "LaserScan"
           raytrace_max_range: 30.0
           raytrace_min_range: 0.0
-          obstacle_max_range: 25.0
+          obstacle_max_range: 12.0   # 바닥 히트(라이다 -2°@0.55m≈15.7m) 아래로 제한 → 바닥 링 노이즈 차단
           obstacle_min_range: 0.0
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
@@ -138,7 +138,7 @@ global_costmap:
           data_type: "LaserScan"
           raytrace_max_range: 30.0
           raytrace_min_range: 0.0
-          obstacle_max_range: 25.0
+          obstacle_max_range: 12.0   # 바닥 히트(라이다 -2°@0.55m≈15.7m) 아래로 제한 → 바닥 링 노이즈 차단
           obstacle_min_range: 0.0
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
