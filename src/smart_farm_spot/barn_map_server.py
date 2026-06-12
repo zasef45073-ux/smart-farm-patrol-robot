@@ -62,18 +62,22 @@ class BarnMapServer(Node):
         self.msg.info.origin.orientation.w = 1.0
         self.msg.data = [int(v) for v in grid.flatten(order="C").tolist()]
 
-        # map→odom = identity (시뮬 odom 이 정확, map 원점=로봇 시작점=odom 원점)
-        self.tf_static = StaticTransformBroadcaster(self)
-        t = TransformStamped()
-        t.header.frame_id = "map"
-        t.child_frame_id = "odom"
-        t.transform.rotation.w = 1.0
-        self.tf_static.sendTransform(t)
+        # map→odom = identity (시뮬 odom 이 정확). 단 SF_NO_MAP_TF=1 이면 생략 →
+        #  AMCL 이 map→odom 을 추정(파티클필터)하도록 양보(AMCL 모드).
+        self._no_tf = os.environ.get("SF_NO_MAP_TF", "0") == "1"
+        if not self._no_tf:
+            self.tf_static = StaticTransformBroadcaster(self)
+            t = TransformStamped()
+            t.header.frame_id = "map"
+            t.child_frame_id = "odom"
+            t.transform.rotation.w = 1.0
+            self.tf_static.sendTransform(t)
 
         nocc = int((grid == 100).sum())
         self.get_logger().info(
             f"알려진 맵 발행: {self.W}×{self.H}@{self.res}m 점유셀{nocc}(투명벽 포함), "
-            f"origin=({self.ox:.1f},{self.oy:.1f}) | map→odom=identity")
+            f"origin=({self.ox:.1f},{self.oy:.1f}) | "
+            f"map→odom={'AMCL 추정(생략)' if self._no_tf else 'identity'}")
         # 주기 재발행(늦게 뜨는 구독자 대비)
         self.timer = self.create_timer(2.0, self._pub)
         self._pub()
