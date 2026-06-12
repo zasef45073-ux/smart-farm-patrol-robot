@@ -18,8 +18,8 @@ PKG="$WS/src/smart_farm_spot"
 INST="$WS/install/smart_farm_spot/share/smart_farm_spot"
 ISAACLAB=/home/rokey/dev_ws/isaac_sim/IsaacLab
 VENV=/home/rokey/dev_ws/venv/isaaclab
-# 무팔 험지(armless rough-terrain) 정책 — no_arm + terrain_generator 학습(메모리: 무팔 235).
-FLATPOL=/home/rokey/dev_ws/isaac_sim/IsaacLab/logs/rsl_rl/spot_flat/no_arm_bast/exported/policy.pt
+# 무팔 정책(no_arm) — 워크스페이스 자체완결(assets/policy/). 외부 IsaacLab 로그 의존 제거.
+FLATPOL="$PKG/assets/policy/policy_no_arm_bast.pt"
 DISP="${DISPLAY:-:1}"
 
 echo "════════════ 시나리오: SLAM + Nav2 + RL_주행 (도메인 $DOMAIN) ════════════"

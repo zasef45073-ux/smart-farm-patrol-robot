@@ -22,7 +22,7 @@ PKG="$WS/src/smart_farm_spot"
 INST="$WS/install/smart_farm_spot/share/smart_farm_spot"
 ISAACLAB=/home/rokey/dev_ws/isaac_sim/IsaacLab
 VENV=/home/rokey/dev_ws/venv/isaaclab
-FLATPOL=/home/rokey/dev_ws/isaac_sim/IsaacLab/logs/rsl_rl/spot_flat/2026-06-07_14-01-53/exported/policy.pt
+FLATPOL="$PKG/assets/policy/policy_spot_flat.pt"   # 워크스페이스 자체완결
 DISP="${DISPLAY:-:1}"
 
 echo "════════════ 시나리오(진짜 SLAM): slam_toolbox + Nav2 + RL (도메인 $DOMAIN) ════════════"
