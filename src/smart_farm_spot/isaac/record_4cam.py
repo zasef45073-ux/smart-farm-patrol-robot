@@ -212,6 +212,26 @@ def apply_wall_collision(stage, barn_root):
     return n
 
 
+def dim_lights(stage, scale):
+    """씬의 모든 UsdLux 라이트 intensity 를 scale 배로 낮춤 → **과노출(흰화면) 완화**.
+      축사 USD 자체 조명 + IsaacLab 기본광이 합쳐져 과노출 → 일괄 감광.
+    """
+    from pxr import UsdLux
+    n = 0
+    for p in stage.Traverse():
+        if "Light" not in p.GetTypeName():
+            continue
+        try:
+            a = UsdLux.LightAPI(p).GetIntensityAttr()
+            if a and a.Get() is not None:
+                a.Set(float(a.Get()) * scale)
+                n += 1
+        except Exception:
+            pass
+    print(f"  ✅ 조명 감광 ×{scale}: {n}개 라이트")
+    return n
+
+
 def mount_hand_realsense(stage, robot_prim):
     """손 끝단에 RealSense 부착 → 컬러 카메라 prim 경로 반환(camera_record 방식 축약)."""
     _ee = None
@@ -305,6 +325,21 @@ def main():
     robot = env.unwrapped.scene["robot"]
     robot_prim = robot.root_physx_view.prim_paths[0]
 
+    # 팔 경량화(massless 트릭) — 무팔 보행정책 CoM 외란 제거 → **뒤집힘 방지**.
+    #  arm_mass.py 는 패키지 루트에 있음 → sys.path 추가 후 import.
+    _ARM_LIGHT = float(os.environ.get("SF_ARM_LIGHT_KG", "0.05"))
+    if _ARM_LIGHT > 0:
+        import sys as _sys
+        _root = os.path.dirname(_ASSETS)
+        if _root not in _sys.path:
+            _sys.path.insert(0, _root)
+        try:
+            from arm_mass import apply_light_arm
+            _n = apply_light_arm(robot, _ARM_LIGHT)
+            print(f"  ✅ 팔 경량화 {_n}개 링크 → {_ARM_LIGHT}kg (뒤집힘 방지)")
+        except Exception as e:
+            print(f"  ⚠️ 팔 경량화: {e}")
+
     policy = torch.jit.load(a.policy, map_location=device)
     policy.eval()
     cmd_term = env.unwrapped.command_manager.get_term("base_velocity")
@@ -353,6 +388,11 @@ def main():
                     UsdGeom.Imageable(_g).MakeInvisible()
                 except Exception:
                     pass
+
+    # 과노출 완화 — 씬 조명 일괄 감광(SF_LIGHT_SCALE, 0=끄지않음)
+    _LSCALE = float(os.environ.get("SF_LIGHT_SCALE", "0.35"))
+    if _LSCALE > 0:
+        dim_lights(stage, _LSCALE)
 
     # ── 4개 카메라 생성 ──────────────────────────────────────────────
     # 1. 축사 사선(고정 오블리크)
