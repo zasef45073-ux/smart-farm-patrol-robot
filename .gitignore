@@ -39,3 +39,8 @@ dashboard/**/__pycache__/
 
 # keepout 마스크 — make_keepout_mask.py 로 재생성 가능(맵 변경시 갱신)
 src/smart_farm_spot/maps/keepout_mask.*
+
+# 제출 산출물(별도 제출, git 부적합)
+*.pptx
+*.pdf
+D-3_*.zip
