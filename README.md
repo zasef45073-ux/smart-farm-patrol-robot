@@ -1,100 +1,161 @@
-# 🐄 spot_ws — 꼬마 로봇 두리 통합 워크스페이스
+# 🐄 스마트 축사 자율순찰 로봇 "꼬마 두리"
 
-스마트 축사 자율순찰 Spot 로봇의 **지금 필요한 파일만** 모은 단일 워크스페이스.
-흩어져 있던 `smart_farm_spot`(인지) + `spot_nav2`(주행)를 하나로 통합한 결과물.
-
-> 원본은 `~/dev_ws/isaac_sim/smart_farm_spot`, `~/dev_ws/isaac_sim/spot_nav2` 에 그대로 있고
-> 백업은 `~/dev_ws/backups/*.tar.gz` 에 있습니다. (검증 후 원본 삭제 가능)
+Boston Dynamics **Spot + 팔** 로봇으로 축사를 자율 순찰하며 소를 검출·검사하는 시스템.
+**Isaac Sim 5.1 + ROS 2 Humble** 기반. **순찰 → 소 검출 → 소 후방(꼬리쪽) 접근 → 검사** 시나리오.
 
 ---
 
-## 📂 무엇이 무엇인지 (한눈에)
+## 1. 주요 기능
 
-```
-spot_ws/
-└── src/
-    └── smart_farm_spot/              ← colcon 빌드 대상 ROS 2 패키지
-        │
-        ├── package.xml / setup.py / setup.cfg / resource/   # ROS 2 패키지 메타
-        ├── README.md                                        # 패키지 상세 설명
-        │
-        ├── smart_farm_spot/          # [ros2 run] ROS 2 노드
-        │   └── waypoint_patrol.py    #   뒤쪽 통로 웨이포인트 순찰
-        │
-        ├── isaac/                    # [isaaclab.sh -p] Isaac Sim 안에서 실행 (ros2 run 아님)
-        │   ├── scene_setup.py        #   ★시나리오 배치★ 축사 로드 + 로봇 시작위치 배치
-        │   ├── isaac_sim_bridge.py   #   ★통합 브릿지★ 센서 + odom/cmd_vel (Nav2 폐루프)
-        │   ├── view_scene.py         #   USD만 띄워서 보는 최소 뷰어
-        │   ├── capture_check.py      #   헤드리스 점검 + 스크린샷
-        │   └── setup_semantics.py    #   소 객체 시맨틱 라벨(detections용)
-        │
-        ├── launch/
-        │   ├── bringup.launch.py     #   ★통합 실행★ Nav2 + (순찰 옵션)
-        │   ├── spot_nav2.launch.py   #   Nav2 스택만
-        │   └── spot_slam.launch.py   #   SLAM 매핑
-        │
-        ├── config/
-        │   ├── nav2_params.yaml      #   Nav2 파라미터 (축사 튜닝)
-        │   └── waypoints.yaml        #   순찰 웨이포인트
-        │
-        ├── maps/
-        │   ├── environment_0609.yaml #   ★준비한 축사 맵★ (AMCL 기본 맵으로 연결됨)
-        │   ├── environment_0609.png  #   점유격자 이미지
-        │   └── README.md
-        │
-        ├── docs/                     # 상세 가이드 (README/INTEGRATION/브릿지/RUN/ASSETS)
-        │
-        └── wip/
-            └── thermal_processor.py  # ⏸ 열화상 비전 준비중 (빌드 제외, 완료 시 모듈로 이동)
-```
-
-### 두 가지 실행 주체 (중요)
-| 위치 | 실행 방법 | 비고 |
-|------|-----------|------|
-| `smart_farm_spot/*.py`, `launch/`, `config/` | `ros2 run` / `ros2 launch` | 일반 ROS 2 (venv 불필요) |
-| `isaac/*.py` | `isaaclab.sh -p` (venv 활성화) | Isaac Sim SimulationApp 필요 |
-
-### 지금 빠진(=아직 안 쓰는) 것
-- **RL 학습 트랙** (`config/spot`, `sensors/`, `assets/`, `mockup/`) → 원본 `isaac_sim/smart_farm_spot/` 에 남겨둠. 주행/시뮬과 별개 트랙이라 이 워크스페이스엔 미포함.
-- **열화상 비전** → `wip/` 에 보관, 빌드 제외.
+| 기능 | 설명 |
+|------|------|
+| **RL 자율 보행** | 무팔 평면정책(`spot_flat`)으로 다리 12관절 보행. 넘어짐 복구·시작 안정화 |
+| **자율 주행 (Nav2)** | 코스트맵 경로계획 + 장애물 회피. 후진금지(전진형) 주행 |
+| **위치추정 3모드** | ① 사전맵+정위치 ② AMCL ③ SLAM/복합(slam_toolbox) 선택 |
+| **투명벽 회피** | 라이다 미감지 가상벽을 Keepout 필터로 코스트맵에 강제 |
+| **소 검출 + 파행** | YOLO-Pose(14키포인트)로 소 검출·거리, 키포인트 비대칭 파행 지표(`/cow/lameness`) |
+| **소 후방 접근** | 검출 → 꼬리 1.5m 뒤로 NavigateToPose 이동 |
+| **순찰** | 축사 통로 끝 전부 자동 순회 |
+| **웹 대시보드** | FastAPI+MQTT+SQLite — 감지·카메라·순찰·비상정지 |
+| **4뷰 헤드리스 녹화** | 축사사선/로봇체이스/손카메라/탑다운맵 mp4 동시 녹화 |
+| **다중 속도 중재** | twist_mux 우선순위 중재 + 비상정지(e_stop) |
 
 ---
 
-## 🛠 빌드
+## 2. 시스템 설계 (플로우차트)
 
+```mermaid
+flowchart TB
+    subgraph ISAAC["Isaac Sim (venv python3.11)"]
+        SC["scenario.py — RL 브릿지<br/>정책 보행 + 축사·소·팔·센서"]
+    end
+    subgraph ROS["ROS 2 Humble (python3.10)"]
+        LOC["위치추정/맵 (택1)<br/>사전맵 / AMCL / SLAM"]
+        NAV["Nav2<br/>코스트맵 경로계획·회피"]
+        KO["Keepout 필터<br/>투명벽 보강"]
+        YOLO["yolo_view<br/>소 검출 + 파행"]
+        NAVG["scenario_nav / patrol<br/>목표 송신"]
+        DASH["dashboard_bridge<br/>웹 대시보드"]
+    end
+
+    SC -- "/scan /odom /tf" --> LOC
+    SC -- "/spot_cam/*" --> YOLO
+    LOC -- "/map, map→odom" --> NAV
+    KO -- "filter mask" --> NAV
+    NAVG -- "NavigateToPose" --> NAV
+    NAV -- "/cmd_vel (vx,wz)" --> SC
+    YOLO -- "검출/파행" --> NAVG
+    YOLO -- "/cow/lameness" --> DASH
+
+    style SC fill:#e8f0ff
+    style NAV fill:#fff0e8
+    style LOC fill:#e8ffe8
+```
+
+**폐루프**: Nav2 경로 → `/cmd_vel` → RL 보행 → 로봇 이동 → `/scan·/odom` → 위치추정/맵 갱신 → Nav2 재계획.
+**핵심 분리**: Nav2는 목표속도만 지시, 실제 다리 보행은 RL이 담당.
+
+> 상세 다이어그램(상태머신·시퀀스·컴포넌트)은 [`SYSTEM_ARCHITECTURE.md`](SYSTEM_ARCHITECTURE.md), 아키텍처 요약은 [`src/smart_farm_spot/ARCHITECTURE.md`](src/smart_farm_spot/ARCHITECTURE.md) 참조.
+
+---
+
+## 3. 운영체제 / 소프트웨어 환경
+
+| 항목 | 버전 |
+|------|------|
+| OS | Ubuntu 22.04 LTS (Linux 6.8) |
+| ROS 2 | Humble Hawksbill |
+| 시뮬레이터 | NVIDIA Isaac Sim **5.1** + Isaac Lab |
+| Python | 3.10 (ROS 측) / 3.11 (Isaac venv) |
+| Nav2 | navigation2 (Humble) |
+| SLAM | slam_toolbox (2D) |
+| 도메인 | `ROS_DOMAIN_ID=153` |
+
+---
+
+## 4. 사용 장비 (시뮬레이션)
+
+| 구분 | 장비 |
+|------|------|
+| 로봇 | Boston Dynamics **Spot + Arm** (USD 모델) |
+| 라이다 | RTX Lidar — `Example_Rotary_2D` (360° 2D LaserScan, 마운트 0.55m) |
+| 카메라 | Intel RealSense **D455** (손끝, RGB-D 320×320) → `/spot_cam/*` |
+| 실행 H/W | NVIDIA GeForce **RTX 5080 Laptop** (16GB) — Isaac Sim 구동 |
+
+> 실 로봇 없이 Isaac Sim 시뮬레이션으로 동작(sim-only).
+
+---
+
+## 5. 의존성
+
+- **Python 패키지**: [`requirements.txt`](requirements.txt) (`pip install -r requirements.txt`)
+  - ⚠️ **numpy 는 반드시 <2** — ROS cv_bridge/matplotlib 가 numpy 1.x ABI
+- **웹 대시보드**: [`dashboard/requirements.txt`](dashboard/requirements.txt) (fastapi, uvicorn, paho-mqtt …)
+- **ROS 2(apt)**: `ros-humble-{navigation2,nav2-bringup,slam-toolbox,twist-mux,cv-bridge}`
+- **Isaac Sim/Lab**: 별도 venv(`~/dev_ws/venv/isaaclab`) — IsaacLab 공식 설치
+
+---
+
+## 6. 실행 순서
+
+### 빌드 (최초 1회)
 ```bash
 cd ~/dev_ws/spot_ws
 source /opt/ros/humble/setup.bash
 colcon build --packages-select smart_farm_spot
 source install/setup.bash
+export ROS_DOMAIN_ID=153
+```
+
+### A. 전체 시나리오 (한 스크립트가 1~5단계 오케스트레이션)
+```bash
+# 위치추정 모드 택1
+bash src/smart_farm_spot/scripts/run_scenario.sh          # ① 사전맵+정위치 (기본)
+bash src/smart_farm_spot/scripts/run_scenario_amcl.sh     # ② AMCL
+SF_SLAM_MODE=mapping bash src/smart_farm_spot/scripts/run_scenario_slam.sh   # ③ SLAM
+```
+스크립트 내부 단계: `[1] Isaac 브릿지 → [2] /scan 대기 → [3] 맵(사전맵/AMCL/SLAM) → [4] Nav2 + Keepout → [5] YOLO + 목표주행`
+옵션: `SF_PATROL=1`(순찰) · `SF_VISION_TAIL=1`(비전목표) · `SF_KEEPOUT=0`(끄기)
+
+### B. ROS 2 기능 통합 launch (Isaac은 별도 기동 시)
+```bash
+ros2 launch smart_farm_spot bringup.launch.py \
+    patrol:=true twist_mux:=true dashboard:=true keepout:=true yolo:=true
+```
+
+### C. 웹 대시보드
+```bash
+cd dashboard && cp -n .env.example .env
+ROS_DOMAIN_ID=153 python3 -m uvicorn server:app --port 5000   # localhost:5000 (admin/changeme)
+```
+
+### D. 4뷰 헤드리스 녹화 (Isaac venv)
+```bash
+source ~/dev_ws/venv/isaaclab/bin/activate && cd ~/dev_ws/isaac_sim/IsaacLab
+SF_HEADLESS=1 SF_OUT_DIR=~/rag/demo SF_REC_RES=1280,640 \
+    ./isaaclab.sh -p ~/dev_ws/spot_ws/src/smart_farm_spot/isaac/record_4cam.py
+```
+
+### 검출 화면 보기
+```bash
+ROS_DOMAIN_ID=153 rqt_image_view /yolo/annotated
 ```
 
 ---
 
-## 🚀 지금 할 수 있는 것 (중간 점검)
+## 7. 디렉터리 구조
 
-### A. 배치 눈으로 보기 (Isaac Sim GUI)
-```bash
-source ~/dev_ws/venv/isaaclab/bin/activate
-cd ~/dev_ws/isaac_sim/IsaacLab
-./isaaclab.sh -p ~/dev_ws/spot_ws/src/smart_farm_spot/isaac/scene_setup.py
-# 로봇 뒤집힘 → BASE_ROT_WXYZ, 위치 → START_POS 조정
 ```
-
-### B. Nav2 주행 (3 터미널)
-```bash
-# 1) Isaac Sim 통합 브릿지
-./isaaclab.sh -p ~/dev_ws/spot_ws/src/smart_farm_spot/isaac/isaac_sim_bridge.py \
-    --usd /home/rokey/Documents/environment_0609.usd --robot-prim /World/Spot --mode kinematic
-# 2) Nav2 (이 축사 맵으로 자동 실행)
-ros2 launch smart_farm_spot bringup.launch.py
-# 3) 순찰
-ros2 run smart_farm_spot waypoint_patrol --ros-args -p loop:=true
+spot_ws/
+├── README.md  ·  requirements.txt  ·  SYSTEM_ARCHITECTURE.md  ·  TODO.md
+├── dashboard/                       # 웹 대시보드 (FastAPI+MQTT+SQLite)
+└── src/smart_farm_spot/             # ROS 2 패키지
+    ├── isaac/                       # Isaac Sim 실행 (scenario.py, record_4cam.py …)
+    ├── launch/                      # bringup, nav2(_amcl/_flat), keepout, spot_slam …
+    ├── config/                      # nav2_params(_slam/_amcl), twist_mux, waypoints …
+    ├── scripts/                     # run_scenario(_amcl/_slam).sh
+    ├── maps/                        # 점유격자 + keepout 마스크
+    ├── assets/                      # USD 씬·로봇·소·텍스처 + 정책(policy.pt)·YOLO(best.pt)
+    ├── tools/                       # check_twist_mux, make_keepout_mask, gen_random_waypoints
+    └── *.py                         # yolo_view, scenario_nav, patrol, barn_map_server …
 ```
-
----
-
-## 🧹 정리 (검증 후 선택)
-이 워크스페이스가 잘 돌면 아래는 삭제 가능 (백업 있음):
-- `~/dev_ws/isaac_sim/spot_nav2/` 및 `spot_nav2.zip`
-- `~/dev_ws/isaac_sim/smart_farm_spot/ros2_bridge/` (브릿지는 isaac/로 병합됨)
