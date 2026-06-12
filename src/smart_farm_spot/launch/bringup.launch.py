@@ -5,20 +5,24 @@ bringup.launch.py
 =================
 스마트 축사 자율순찰 통합 bringup (ROS 2 측 전체).
 
-한 번의 launch로 ROS 2 쪽을 모두 띄웁니다:
-  1. Nav2 전체 스택           (spot_nav2.launch.py 포함)
-  2. 웨이포인트 순찰 노드       (waypoint_patrol, 선택)
+한 번의 launch로 ROS 2 쪽 기능을 인자로 켜고끕니다(전부 선택, 기본 nav2만):
+  1. Nav2 전체 스택              (spot_nav2.launch.py 포함, 항상)
+  2. 웨이포인트 순찰             patrol:=true   (waypoint_patrol)
+  3. twist_mux 우선순위 중재     twist_mux:=true (Nav2→nav2/cmd_vel, mux→/cmd_vel)
+  4. 웹 대시보드 브리지          dashboard:=true (dashboard_bridge)
+  5. Keepout 투명벽 필터         keepout:=true   (keepout.launch.py)
+  6. YOLO 검출 + 파행            yolo:=true      (/yolo/annotated, /cow/lameness)
 
   ※ 열화상 후처리(thermal_processor)는 비전 준비중이라 통합에서 제외됨.
 
-⚠️  Isaac Sim 측 브릿지는 별도 실행해야 합니다 (SimulationApp 필요):
-      ~/isaacsim/python.sh \
-        $(ros2 pkg prefix smart_farm_spot)/share/smart_farm_spot/isaac/isaac_sim_bridge.py \
-        --usd /path/to/barn_scene.usd --robot-prim /World/Spot --mode kinematic
+⚠️  Isaac Sim 측 브릿지는 별도 실행해야 합니다 (SimulationApp — venv/isaaclab):
+      ./isaaclab.sh -p .../isaac/scenario.py     (RL 보행 + 센서 + 카메라 + 소)
 
 [실행]
   ros2 launch smart_farm_spot bringup.launch.py
-  ros2 launch smart_farm_spot bringup.launch.py use_amcl:=false patrol:=true loop:=true
+  # 전 기능 통합 기동:
+  ros2 launch smart_farm_spot bringup.launch.py \
+      patrol:=true loop:=true twist_mux:=true dashboard:=true keepout:=true yolo:=true
 """
 
 import os
@@ -47,6 +51,7 @@ def generate_launch_description():
     use_twist_mux = LaunchConfiguration("twist_mux")
     use_dashboard = LaunchConfiguration("dashboard")
     use_keepout = LaunchConfiguration("keepout")
+    use_yolo = LaunchConfiguration("yolo")
 
     declare_args = [
         DeclareLaunchArgument("use_sim_time", default_value="true",
@@ -68,6 +73,9 @@ def generate_launch_description():
                               description="웹 대시보드 브리지 노드 실행"),
         DeclareLaunchArgument("keepout", default_value="false",
                               description="Keepout 필터 서버 실행(투명벽 회피)"),
+        DeclareLaunchArgument("yolo", default_value="false",
+                              description="YOLO 검출+파행(yolo_view) 노드 실행 "
+                                          "(/yolo/annotated, /cow/lameness)"),
     ]
 
     # ── Nav2 스택 (spot_nav2.launch.py) ──────────────────────────────
@@ -126,5 +134,15 @@ def generate_launch_description():
         condition=IfCondition(use_keepout),
     )
 
+    # ── YOLO 검출 + 파행 (선택) — /yolo/annotated, /cow/lameness ─────
+    yolo = Node(
+        package="smart_farm_spot",
+        executable="yolo_view",
+        name="yolo_view",
+        output="screen",
+        parameters=[{"use_sim_time": use_sim_time}],
+        condition=IfCondition(use_yolo),
+    )
+
     return LaunchDescription(
-        declare_args + [nav2, patrol, twist_mux, dashboard_bridge, keepout])
+        declare_args + [nav2, patrol, twist_mux, dashboard_bridge, keepout, yolo])
