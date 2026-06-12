@@ -9,15 +9,16 @@ _우선순위: 🔴발표 전(오늘) · 🟡GPU/Isaac 환경 · 🟢지금 가�
 - [x] **대시보드 사전 1회 실행 확인** ✅ — uvicorn 기동·로그인 200·detect_mastitis 7/7·
       COW_6_10 등록·감지 end-to-end 검증 완료
 - [ ] **데모 시나리오 = 대시보드 라이브 + Isaac은 녹화/보조** 로 구성 (Isaac 미검증 리스크 회피)
-- [ ] Isaac 라이브 할 거면 **발표 전 반드시 한 번 띄워보기** (안 띄우면 ~30%, 띄워서 되면 그 장면 재현 ~90%)
+- [x] Isaac 라이브 **띄워보기** ✅ — run_scenario.sh **2회 정상 기동** 확인(로딩→Nav2 active→순찰→검출→후방접근)
 - [x] `environment_final.usd` 를 `src/smart_farm_spot/assets/scene/` 에 배치 ✅ — git 커밋·push 완료, 전 isaac 스크립트 참조 통일
 
 ---
 
 ## 🟡 GPU/Isaac 환경에서 (실행·튜닝)
 
-- [ ] **정책↔env 차원 일치 확인** — flat 정책 vs `Isaac-Velocity-Rough-SpotArm` 태스크 (안 맞으면 부팅 실패)
-- [ ] Isaac 통합 실행: 순찰→검출→후방접근→검사 한 사이클
+- [x] **정책↔env 차원 일치 확인** ✅ — Isaac 부팅 성공 + RL(spot_flat) 보행 정상(차원 불일치 부팅실패 없음)
+- [~] Isaac 통합 실행: 순찰→검출→후방접근→**검사** 한 사이클 —
+      순찰→검출(소1마리,파행 0.02)→후방접근 ✅ 라이브 검증 / **검사(inspect) 단계는 미실행** (남음)
 - [ ] **검사 자세 각도 튜닝** — `SF_INSP_SH1/EL0/WR0` (유방이 손 카메라에 들어오게)
 - [ ] **앉기 자세 튜닝** — `SF_SIT_HY/KN` (몸 낮추되 z>0.30 유지)
 - [ ] **앉기 leg-control 검증** — `env.step` 정책이 sit 을 거스르는지 / 정지구간 정책 leg-action 억제 필요 여부
@@ -58,5 +59,8 @@ _우선순위: 🔴발표 전(오늘) · 🟡GPU/Isaac 환경 · 🟢지금 가�
 ## ✅ 이미 완료 (검증됨)
 
 - 웹 대시보드(FastAPI+MQTT+SQLite+WS+SSE) — 전 엔드포인트 실행 검증, detect_mastitis 7/7
-- 로봇 로직 — YOLO 트래킹·검사 시퀀스·twist_mux·keepout·브리지 등 **단위 테스트 47개 통과**
+- 로봇 로직 — YOLO 트래킹·검사 시퀀스·twist_mux·keepout·브리지 등 **단위 테스트 51개 통과**
 - SLAM static_layer + Keepout filter (투명벽 회피), 환경/맵 교체, 다중 소 배치
+- **twist_mux 런타임 검증** — 우선순위 중재(tail>nav) + e_stop lock→/cmd_vel=0, dashboard_bridge 노드 기동
+- **시나리오 라이브 실행 2회** — Isaac+RL보행+Nav2+YOLO검출+파행지표(/cow/lameness)+소후방접근
+- **환경 수정**: 시스템 numpy 2→1.26.4 (ROS cv_bridge/matplotlib numpy1 ABI 충돌 해소 → yolo_view 정상)
