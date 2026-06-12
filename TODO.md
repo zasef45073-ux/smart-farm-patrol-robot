@@ -28,8 +28,13 @@ _우선순위: 🔴발표 전(오늘) · 🟡GPU/Isaac 환경 · 🟢지금 가�
       ros2 launch smart_farm_spot bringup.launch.py keepout:=true   # 또는 SF_KEEPOUT=1 run_scenario.sh
       ```
       (남은 검증: Nav2 동반 실제 회피 동작 — Isaac 실행 필요)
-- [ ] **4방향 카메라 + 헤드리스 1사이클** (신규) — 전/후/좌/우 카메라 + 순찰→검출→후방접근→검사
-      완주를 GUI 없이(headless) 1회 자동 실행. ⚠️ Isaac/GPU 필요 — 작성 후 그 환경에서 검증.
+- [x] **4뷰 헤드리스 녹화** ✅ — `isaac/record_4cam.py`: 축사사선/로봇체이스/손RealSense/탑다운맵
+      4뷰를 헤드리스로 동시 mp4 저장(`SF_OUT_DIR` 지정 폴더). 라이브 검증: 900프레임×4뷰 OK.
+      ```bash
+      SF_HEADLESS=1 SF_OUT_DIR=~/rag/demo SF_REC_SECONDS=30 \
+        ./isaaclab.sh -p .../isaac/record_4cam.py   # (isaaclab venv)
+      ```
+      (남은 튜닝: 노출 과다(밝음) — 조명/exposure, hand_cam 시점 각도)
 
 ---
 
