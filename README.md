@@ -31,6 +31,12 @@ RL 자율 보행, Nav2 주행, SLAM/위치추정, YOLO-Pose 소 검출, twist_mu
   사용자 뷰포트 화면이 전송되는 문제 발생. 원인은 파악했으나(카메라 prim 생성 및 ROS2 
   Camera Helper 연결 누락), 시간 제약으로 완료하지 못함
 
+## 📦 사용 3D 에셋 출처
+
+- 소(Holstein) 모델: [TurboSquid - Low Poly Cow Holstein Dairy Rigged Animated](https://www.turbosquid.com/3d-models/3d-low-poly-cow-3d-model-holstein-dairy-rigged-animated-model-2570893) by RetroStyle Games (무료, Standard License)
+- 로봇 모델(Spot + Arm): NVIDIA Isaac Sim 공식 예제 에셋
+- 라이선스 제약으로 위 원본 모델 파일은 본 레포에 포함하지 않음
+
 ---
 
 ## 1. 주요 기능
