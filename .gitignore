@@ -47,3 +47,8 @@ D-3_*.zip
 *.mp4
 *.MOV
 *.mov
+
+
+# 3D 모델/씬 원본 (외부 라이선스 또는 NVIDIA Isaac Sim 예제 에셋 — 재배포 불확실)
+src/smart_farm_spot/assets/scene/models/*
+src/smart_farm_spot/assets/robot/*.usd

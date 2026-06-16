@@ -5,6 +5,34 @@ Boston Dynamics **Spot + 팔** 로봇으로 축사를 자율 순찰하며 소를
 
 ---
 
+## 👤 담당 역할
+
+이 프로젝트는 5인 팀 프로젝트이며, 저는 다음 부분을 담당했습니다.
+
+- **3D 에셋 소싱** — 소(Holstein) 모델(애니메이션 포함), 축사 건물 모델 탐색 및 제공
+- **웹 대시보드 영상 스트리밍** — Isaac Sim 영상을 ROS2 토픽으로 발행, 두 대의 Ubuntu 노트북 간 네트워킹, FastAPI 기반 웹 대시보드에 영상 표시
+
+RL 자율 보행, Nav2 주행, SLAM/위치추정, YOLO-Pose 소 검출, twist_mux 속도 중재 등 
+나머지 구현 부분은 다른 팀원들이 담당했습니다.
+
+## ⚠️ 프로젝트 진행 상황 및 한계
+
+본 README에 기재된 기능들은 설계 및 부분 구현 수준이며, 시간 제약으로 인해 
+전체 시스템이 의도대로 완성되지는 못했습니다.
+
+- ❌ **로봇 제어**: RL 보행 정책 학습에 실패하여 로봇이 실제로 동작하지 않음
+- ✅ **대시보드 (담당 파트)**: ROS2 토픽 송수신(노트북 간 네트워킹), FastAPI를 통한 웹 브라우저 영상 표시는 정상 동작
+- ❌ **대시보드 카메라 시점 (담당 파트)**: Isaac Sim 씬에 카메라(Camera prim)를 명시적으로 생성하지 않아, 의도한 로봇 시점이 아닌 사용자 뷰포트 화면이 표시됨
+
+## 🛠️ 트러블슈팅 (담당 파트)
+
+- **Isaac Sim 카메라 시점 미스매치** — ROS2 토픽을 구독해 웹 대시보드에 영상을 스트리밍했으나, 
+  Isaac Sim 씬에 카메라(Camera prim)를 명시적으로 생성하지 않아 의도한 카메라 시점이 아닌 
+  사용자 뷰포트 화면이 전송되는 문제 발생. 원인은 파악했으나(카메라 prim 생성 및 ROS2 
+  Camera Helper 연결 누락), 시간 제약으로 완료하지 못함
+
+---
+
 ## 1. 주요 기능
 
 | 기능 | 설명 |
@@ -147,15 +175,69 @@ ROS_DOMAIN_ID=153 rqt_image_view /yolo/annotated
 
 ```
 spot_ws/
-├── README.md  ·  requirements.txt  ·  SYSTEM_ARCHITECTURE.md  ·  TODO.md
-├── dashboard/                       # 웹 대시보드 (FastAPI+MQTT+SQLite)
-└── src/smart_farm_spot/             # ROS 2 패키지
-    ├── isaac/                       # Isaac Sim 실행 (scenario.py, record_4cam.py …)
-    ├── launch/                      # bringup, nav2(_amcl/_flat), keepout, spot_slam …
-    ├── config/                      # nav2_params(_slam/_amcl), twist_mux, waypoints …
-    ├── scripts/                     # run_scenario(_amcl/_slam).sh
-    ├── maps/                        # 점유격자 + keepout 마스크
-    ├── assets/                      # USD 씬·로봇·소·텍스처 + 정책(policy.pt)·YOLO(best.pt)
-    ├── tools/                       # check_twist_mux, make_keepout_mask, gen_random_waypoints
-    └── *.py                         # yolo_view, scenario_nav, patrol, barn_map_server …
+├── README.md · requirements.txt · SYSTEM_ARCHITECTURE.md
+├── TEST_COVERAGE_ANALYSIS.md · TODO.md
+├── dashboard/                        # 웹 대시보드 (FastAPI + MQTT + SQLite)
+│   ├── server.py                     # FastAPI 앱 진입점
+│   ├── ros2_bridge.py                # ROS 2 → MQTT 브리지
+│   ├── mqtt_client.py · camera_stream.py · database.py
+│   ├── detect_mastitis.py · mock_sim.py · test_mastitis.py
+│   ├── mosquitto.conf · docker-compose.yml · Dockerfile · requirements.txt
+│   ├── routes/                       # camera.py · detection.py · edr.py · robot.py
+│   └── templates/                    # dashboard.html · camera.html · edr.html · login.html
+└── src/smart_farm_spot/              # ROS 2 패키지
+    ├── package.xml · setup.cfg · setup.py
+    ├── ARCHITECTURE.md · README.md
+    ├── *.py                          # ROS 2 노드
+    │                                 #   yolo_view, yolo_record, scenario_nav, patrol,
+    │                                 #   barn_map_server, cow_tracker, cow_tail_seek,
+    │                                 #   nav_to_cow, dashboard_bridge, h_drive,
+    │                                 #   arm_mass, arm_poses, inspect_sequence,
+    │                                 #   inspection_capture
+    ├── assets/                       # 모델·정책·YOLO 가중치
+    │   ├── policy/                   # policy.pt · policy_no_arm_bast.pt · *.onnx
+    │   ├── robot/                    # spot_with_arm.usd
+    │   ├── scene/                    # environment_*.usd · textures/ · models/ · props/
+    │   └── yolo/                     # best.pt (YOLO-Pose 가중치)
+    ├── config/                       # 파라미터·웨이포인트·RViz 설정
+    │   ├── nav2_params.yaml · nav2_params_amcl.yaml
+    │   ├── nav2_params_flat.yaml · nav2_params_slam.yaml
+    │   ├── keepout_filter.yaml · twist_mux.yaml · scenario_modes.yaml
+    │   ├── waypoints.yaml · waypoints_diag.yaml · waypoints_h.yaml
+    │   └── scenario.rviz · slam_view.rviz
+    ├── docs/                         # 통합·실행·브리지 가이드 문서
+    │   ├── ASSETS.md · INTEGRATION.md · ROS2_BRIDGE_GUIDE.md · RUN_GUIDE.md
+    │   └── README.md
+    ├── isaac/                        # Isaac Sim 실행 스크립트 (venv python3.11)
+    │   ├── scenario.py               # 메인 RL 브리지 (진입점)
+    │   ├── record_4cam.py            # 4뷰 헤드리스 녹화
+    │   ├── nav_policy_bridge.py · nav_policy_slam_bridge.py · nav_bridge.py
+    │   ├── scene_setup.py · add_sensors.py · setup_semantics.py
+    │   ├── camera_record.py · capture_check.py · drive_course.py
+    │   ├── isaac_sim_bridge.py · ros_bridge_test.py · view_scene.py
+    │   └── scenario1/                # 초기 시나리오 아카이브
+    ├── launch/                       # ROS 2 launch 파일
+    │   ├── bringup.launch.py         # 통합 기동 (patrol·twist_mux·dashboard·keepout·yolo)
+    │   ├── keepout.launch.py
+    │   ├── nav2_amcl.launch.py · nav2_flat.launch.py
+    │   └── spot_nav2.launch.py · spot_slam.launch.py · spot_slam_loc.launch.py
+    ├── maps/                         # 점유격자 + keepout 마스크
+    │   ├── environment_0609.{png,yaml} · environment_final.{png,yaml}
+    │   ├── keepout_mask.{pgm,yaml}   # make_keepout_mask.py 로 재생성 가능
+    │   └── backup/
+    ├── resource/                     # ROS 2 ament 리소스 마커
+    ├── scripts/                      # 오케스트레이션 셸 스크립트
+    │   ├── run_scenario.sh           # ① 사전맵+정위치 (기본)
+    │   ├── run_scenario_amcl.sh      # ② AMCL
+    │   ├── run_scenario_slam.sh      # ③ SLAM
+    │   └── run_slam_nav.sh · run_local.sh · run_server.sh
+    ├── smart_farm_spot/              # Python 패키지 (ament install)
+    │   └── waypoint_patrol.py
+    ├── test/                         # 단위 테스트 (pytest)
+    │   └── test_{arm_mass,arm_poses,cow_tracker,dashboard_bridge,
+    │           inspection_capture,inspect_sequence,keepout_mask}.py
+    ├── tools/                        # 개발 유틸리티
+    │   └── check_twist_mux.py · check_warmstart.py · make_keepout_mask.py
+    └── wip/                          # 개발 중 (미완성)
+        └── thermal_processor.py
 ```
